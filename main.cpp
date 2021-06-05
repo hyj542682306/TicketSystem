@@ -5,7 +5,6 @@
 #include<sstream>
 #include<fstream>
 #include "BPlus_Tree.cpp"
-//#include "bp_t.hpp"
 
 
 const int inf=0x3f3f3f3f;
@@ -103,7 +102,7 @@ void sort(int l,int r,sort_node *a){
 }
 void sort(int l,int r,unsigned int *a){
 	if(l>=r)return ;
-	int i,j,base,tmp;
+	unsigned int i,j,base,tmp;
 	i=l,j=r,base=a[l];
 	while(i<j){
 		while(a[j]>=base&&i<j)j--;
@@ -134,6 +133,7 @@ int add_user(){
 	if(first_user.query(0)==-1){
 		_user.g=10;
 		user.insert(hash_calc(_user.u),0);
+		file_user.seekg(0,std::ios::beg);
 		file_user.write(reinterpret_cast<char * >(&_user),sizeof(_user));
 		first_user.insert(0,1);
 		return 0;
@@ -197,7 +197,7 @@ int query_profile(){
 	if(hashtable1.query(chash)==-1)return -1;
 	int cpos=user.query(chash),upos=user.query(uhash);
 	//query itself
-	if(string_same(c,u)){
+	if(chash==uhash){
 		file_user.seekg(upos,std::ios::beg);
 		file_user.read(reinterpret_cast<char * >(&_user),sizeof(_user));
 		return 0;
@@ -231,7 +231,7 @@ int modify_profile(){
 	//login error
 	if(hashtable1.query(chash)==-1)return -1;
 	int cpos=user.query(chash),upos=user.query(uhash);
-	if(string_same(u,c)){
+	if(chash==uhash){
 		file_user.seekg(upos,std::ios::beg);
 		file_user.read(reinterpret_cast<char * >(&_user),sizeof(_user));
 		if(fg&&_user.g<=g)return -1;
@@ -266,10 +266,14 @@ int minsum[13]={inf,0,44640,84960,129600,172800,217440,260640,305280,349920,3931
 struct ntime{
 	int m,d,h,n;
 	void output(char c='\0'){
-		if(m<10)printf("0");printf("%d-",m);
-		if(d<10)printf("0");printf("%d ",d);
-		if(h<10)printf("0");printf("%d:",h);
-		if(n<10)printf("0");printf("%d",n);
+		if(m<10)printf("0");
+		printf("%d-",m);
+		if(d<10)printf("0");
+		printf("%d ",d);
+		if(h<10)printf("0");
+		printf("%d:",h);
+		if(n<10)printf("0");
+		printf("%d",n);
 		if(c!='\0')putchar(c);
 	}
 	bool operator < (const ntime &A) const {
@@ -580,7 +584,7 @@ void query_ticket(){
 }
 void query_transfer(){
 	char now[20],s[50],t[50],q[6];
-	int d[2],fq=0;
+	int d[2];
 	while(scanf("%s",now)!=EOF){
 		if(now[0]!='-'){
 			nextorder=1;
@@ -590,7 +594,7 @@ void query_transfer(){
 		if(now[1]=='s')scanf("%s",s);
 		else if(now[1]=='t')scanf("%s",t);
 		else if(now[1]=='d')scanf("%d-%d",&d[0],&d[1]);
-		else scanf("%s",q),fq=1;
+		else scanf("%s",q);
 	}
 	if(d[0]<6){
 		puts("0");
@@ -616,7 +620,7 @@ void query_transfer(){
 		int mark=0,p=0,s=inf,di=timeid(d[0],d[1]);
 		//enumerate the mid station M
 		for(int j=1;j<=_train.n;++j){
-			int nowhash=hash_calc(_train.s[j]);
+			unsigned int nowhash=hash_calc(_train.s[j]);
 			if(!mark&&nowhash==shash){
 				ntime tmp=(ntime){0,0,_train.x[0],_train.x[1]};
 				tmp=timecalc(tmp,_train.leave[j]);
