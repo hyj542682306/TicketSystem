@@ -981,7 +981,6 @@ void clean(){
 
 //main
 int main(){
-	freopen("1.ans","w",stdout);
 	create_file();
 	while(true){
 		if(!nextorder){
