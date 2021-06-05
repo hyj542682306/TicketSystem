@@ -5,6 +5,7 @@
 #include<sstream>
 #include<fstream>
 #include "BPlus_Tree.cpp"
+//#include "bp_t.hpp"
 
 
 const int inf=0x3f3f3f3f;
@@ -69,7 +70,7 @@ bool string_less(const char *A,const char *B){
 unsigned int hash_calc(char *s){
 	int len=strlen(s);
 	unsigned int res=0;
-	for(int i=0;i<len;++i)res=res*19260817+s[i];
+	for(int i=0;i<len;++i)res=res*297+s[i];
 	return res;
 }
 
@@ -211,7 +212,7 @@ int query_profile(){
 	return ucur.g>_user.g?0:-1;
 }
 int modify_profile(){
-	char now[20],c[25],u[25],p[35],n[25],m[25];
+	char now[20],c[25],u[25],p[35],n[25],m[35];
 	int g,fm=0,fn=0,fp=0,fg=0;
 	while(scanf("%s",now)!=EOF){
 		if(now[0]!='-'){
