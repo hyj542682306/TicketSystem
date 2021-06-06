@@ -21,6 +21,7 @@ std::fstream file_train("train",std::ios::in|std::ios::out|std::ios::binary);
 std::fstream file_station("station",std::ios::in|std::ios::out|std::ios::binary);
 std::fstream file_order("order",std::ios::in|std::ios::out|std::ios::binary);
 std::fstream file_queue("queue",std::ios::in|std::ios::out|std::ios::binary);
+std::fstream file_seat("seat",std::ios::in|std::ios::out|std::ios::binary);
 //create file
 void create_file(){
 	if(!file_user.is_open()){
@@ -47,6 +48,11 @@ void create_file(){
 		file_queue.open("queue",std::ios::out|std::ios::binary);
 		file_queue.close();
 		file_queue.open("queue",std::ios::in|std::ios::out|std::ios::binary);
+	}
+	if(!file_seat.is_open()){
+		file_seat.open("seat",std::ios::out|std::ios::binary);
+		file_seat.close();
+		file_seat.open("seat",std::ios::in|std::ios::out|std::ios::binary);
 	}
 }
 
@@ -320,9 +326,15 @@ int timedecode2(int d){
 }
 
 //train
+struct seat_node{
+	int s[105];
+	void fill(int n,int x){
+		for(int i=1;i<n;++i)s[i]=x;
+	}
+}_seat,__seat;
 struct train_node{
 	char i[25],s[105][50],y;
-	int n,m[100][105],o[105],p[105],x[2],t[105],d[4],ms;
+	int n,m[100],o[105],p[105],x[2],t[105],d[4],ms;
 	int arrive[105],leave[105];
 }_train,__train;
 struct station_node{
@@ -395,9 +407,7 @@ int add_train(){
 	if(train.query(ihash)!=-1)return -1;
  	//process the information
 	_train.leave[1]=0;
-	for(int j=1;j<=92;++j)_train.m[j][1]=_train.ms;
 	for(int i=2;i<=_train.n;++i){
-		for(int j=1;j<=92;++j)_train.m[j][i]=_train.ms;
 		_train.arrive[i]=_train.leave[i-1]+_train.t[i-1];
 		if(i!=_train.n)_train.leave[i]=_train.arrive[i]+_train.o[i-1];
 	}
@@ -418,10 +428,20 @@ int release_train(){
 	if(hashtable2.query(ihash)==1)return -1;
 	//legal
 	hashtable2.insert(ihash,1);
-	//write station
 	int ipos=train.query(ihash);
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
+	//write seat
+	int dl=timeid(_train.d[0],_train.d[1]),dr=timeid(_train.d[2],_train.d[3]);
+	for(int i=dl;i<=dr;++i){
+		file_seat.seekg(0,std::ios::end);
+		_train.m[i]=file_seat.tellg();
+		_seat.fill(_train.n,_train.ms);
+		file_seat.write(reinterpret_cast<char * >(&_seat),sizeof(_seat));
+	}
+	file_train.seekg(ipos,std::ios::beg);
+	file_train.write(reinterpret_cast<char *>(&_train),sizeof(_train));
+	//write station
 	for(int i=1;i<=_train.n;++i){
 		unsigned int shash=hash_calc(_train.s[i]);
 		int spos=station.query(shash);
@@ -460,6 +480,11 @@ int query_train(){
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 	int ld=timeid(_train.d[0],_train.d[1]),rd=timeid(_train.d[2],_train.d[3]);
 	if(di<ld||di>rd)return -1;
+	if(hashtable2.query(ihash)==-1)_seat.fill(_train.n,_train.ms);
+	else {
+		file_seat.seekg(_train.m[di],std::ios::beg);
+		file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
+	}
 	printf("%s %c\n",_train.i,_train.y);
 	ntime et=(ntime){d[0],d[1],_train.x[0],_train.x[1]};
 	int psum=0;
@@ -473,7 +498,7 @@ int query_train(){
 		if(i!=1)psum+=_train.p[i-1];
 		printf("%d ",psum);
 		if(i==_train.n)printf("x\n");
-		else printf("%d\n",_train.m[di][i]);
+		else printf("%d\n",_seat.s[i]);
 	}
 	return 0;
 }
@@ -541,11 +566,13 @@ void query_ticket(){
 						mark=0;
 						break;
 					}
+					file_seat.seekg(_train.m[di],std::ios::beg);
+					file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 				} else if(string_same(t,_train.s[k])){
 					tt=_train.arrive[k];
 					break;
 				}
-				if(mark)p+=_train.p[k],seat=std::min(seat,_train.m[di][k]);
+				if(mark)p+=_train.p[k],seat=std::min(seat,_seat.s[k]);
 			}
 			if(!mark)continue;
 			++cnt;
@@ -620,9 +647,11 @@ void query_transfer(){
 				mark=j;
 				int ld=timeid(_train.d[0],_train.d[1]),rd=timeid(_train.d[2],_train.d[3]);
 				if(di<ld||di>rd)break;
+				file_seat.seekg(_train.m[di],std::ios::beg);
+				file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 			} else if(mark){
 				if(nowhash==thash){
-					p+=_train.p[j],s=std::min(s,_train.m[di][j]);
+					p+=_train.p[j],s=std::min(s,_seat.s[j]);
 					continue;
 				}
 				mhash=nowhash;
@@ -661,6 +690,8 @@ void query_transfer(){
 								_mark=0;
 								break;
 							}
+							file_seat.seekg(__train.m[_di],std::ios::beg);
+							file_seat.read(reinterpret_cast<char * >(&__seat),sizeof(__seat));
 						}
 						else if(hash_calc(__train.s[l])==thash){
 							if(!_mark)break;
@@ -690,12 +721,12 @@ void query_transfer(){
 							}
 							break;
 						}
-						if(_mark)_p+=__train.p[l],_s=std::min(_s,__train.m[_di][l]);
+						if(_mark)_p+=__train.p[l],_s=std::min(_s,__seat.s[l]);
 					}
 					if(!_mark)continue;
 				}
 			}
-			if(mark)p+=_train.p[j],s=std::min(s,_train.m[di][j]);
+			if(mark)p+=_train.p[j],s=std::min(s,_seat.s[j]);
 		}
 	}
 	if(key==inf)puts("0");
@@ -758,19 +789,21 @@ long long buy_ticket(){
 				mark=0;
 				break;
 			}
+			file_seat.seekg(_train.m[di],std::ios::beg);
+			file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 		} else if(nowhash==thash){
 			ti=i;
 			break;
 		}
-		if(mark)p+=_train.p[i],s=std::min(s,_train.m[di][i]);
+		if(mark)p+=_train.p[i],s=std::min(s,_seat.s[i]);
 	}
 	if(!mark)return -1;
 	if(s<n&&(q[0]=='f'||!fq))return -1;
 	if(si==-1||ti==-1)return -1;
 	if(s>=n){
-		for(int i=si;i<ti;++i)_train.m[di][i]-=n;
-		file_train.seekg(ipos,std::ios::beg);
-		file_train.write(reinterpret_cast<char * >(&_train),sizeof(_train));
+		for(int i=si;i<ti;++i)_seat.s[i]-=n;
+		file_seat.seekg(_train.m[di],std::ios::beg);
+		file_seat.write(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 		int opos=order.query(uhash),precnt=0;
 		if(opos!=-1){
 			file_order.seekg(opos,std::ios::beg);
@@ -927,21 +960,25 @@ int refund_ticket(){
 	int ipos=train.query(ihash);
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
+	file_seat.seekg(_train.m[_order.di],std::ios::beg);
+	file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 	for(int i=_order.si;i<_order.ti;++i)
-		_train.m[_order.di][i]+=_order.n;
-	file_train.seekg(ipos,std::ios::beg);
-	file_train.write(reinterpret_cast<char * >(&_train),sizeof(_train));
+		_seat.s[i]+=_order.n;
+	file_seat.seekg(_train.m[_order.di],std::ios::beg);
+	file_seat.write(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 	//queue
 	int qpos=queue.query(ihash),_qpos=-1;
 	while(qpos!=-1){
 		file_queue.seekg(qpos,std::ios::beg);
 		file_queue.read(reinterpret_cast<char * >(&_queue),sizeof(_queue));
 		int s=inf;
-		for(int i=_queue.si;i<_queue.ti;++i)s=std::min(s,_train.m[_queue.di][i]);
+		file_seat.seekg(_train.m[_queue.di],std::ios::beg);
+		file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
+		for(int i=_queue.si;i<_queue.ti;++i)s=std::min(s,_seat.s[i]);
 		if(s>=_queue.n){
-			for(int i=_queue.si;i<_queue.ti;++i)_train.m[_queue.di][i]-=_queue.n;
-			file_train.seekg(ipos,std::ios::beg);
-			file_train.write(reinterpret_cast<char * >(&_train),sizeof(_train));
+			for(int i=_queue.si;i<_queue.ti;++i)_seat.s[i]-=_queue.n;
+			file_seat.seekg(_train.m[_queue.di],std::ios::beg);
+			file_seat.write(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 			file_order.seekg(_queue.opos,std::ios::beg);
 			file_order.read(reinterpret_cast<char * >(&_order),sizeof(_order));
 			_order.sta=1;
@@ -994,6 +1031,10 @@ void clean(){
 	file_queue.open("queue",std::fstream::out|std::ios::trunc);
 	file_queue.close();
 	file_queue.open("queue",std::ios::in|std::ios::out|std::ios::binary);
+	file_seat.close();
+	file_seat.open("seat",std::fstream::out|std::ios::trunc);
+	file_seat.close();
+	file_seat.open("seat",std::ios::in|std::ios::out|std::ios::binary);
 }
 
 //main
