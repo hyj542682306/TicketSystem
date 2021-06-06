@@ -122,6 +122,18 @@ void sort(int l,int r,unsigned int *a,short *b){
 	b[l]=b[i];b[i]=_base;
 	sort(l,i-1,a,b),sort(i+1,r,a,b);
 }
+void sort(int l,int r,std::pair<unsigned int,int> *a){
+	if(l>=r)return ;
+	unsigned int i=l,j=r;
+	std::pair<unsigned int,int> base=a[l];
+	while(i<j){
+		while(a[j]>=base&&i<j)j--;
+		while(a[i]<=base&&i<j)i++;
+		if(i<j)std::swap(a[i],a[j]);
+	}
+	a[l]=a[i];a[i]=base;
+	sort(l,i-1,a),sort(i+1,r,a);
+}
 int find_pos(int l,int r,unsigned int *a,unsigned int x){
 	int ans=-1;
 	while(l<=r){
@@ -353,10 +365,9 @@ struct train_node{
 	short ps[105];
 }_train,__train;
 struct station_node{
-	int cnt;
-	unsigned int i[10005];
-	short ps[10005];
-}_station,__station;
+	unsigned int i;
+	int ps,pre;
+}_station;
 struct order_node{
 	int sta,n,pre,di,si,ti,cnt,p;
 	ntime s,t;
@@ -368,6 +379,15 @@ struct queue_node{
 		opos=A.opos,n=A.n,di=A.di,si=A.si,ti=A.ti,nxt=A.nxt;
 	}
 }_queue,__queue;
+void Get_trainID(std::pair<unsigned int,int> *a,int pos,int &cnt){
+	cnt=0;
+	while(pos!=-1){
+		file_station.seekg(pos,std::ios::beg);
+		file_station.read(reinterpret_cast<char * >(&_station),sizeof(_station));
+		a[++cnt]=std::make_pair(_station.i,_station.ps);
+		pos=_station.pre;
+	}
+}
 int add_train(){
 	//read the information
 	char now[5];
@@ -468,20 +488,19 @@ int release_train(){
 		unsigned int shash=hash_calc(_train.s[i]);
 		int spos=station.query(shash);
 		if(spos==-1){
-			_station.cnt=1;
-			_station.i[_station.cnt]=ihash;
-			_station.ps[_station.cnt]=i;
 			file_station.seekg(0,std::ios::end);
-			spos=file_station.tellg();
-			station.insert(shash,spos);
+			station.insert(shash,file_station.tellg());
+			_station.pre=-1;
+			_station.i=ihash;
+			_station.ps=i;
 			file_station.write(reinterpret_cast<char * >(&_station),sizeof(_station));
 		} else {
-			file_station.seekg(spos,std::ios::beg);
-			file_station.read(reinterpret_cast<char * >(&_station),sizeof(_station));
-			_station.cnt++;
-			_station.i[_station.cnt]=ihash;
-			_station.ps[_station.cnt]=i;
-			file_station.seekg(spos,std::ios::beg);
+			_station.i=ihash;
+			_station.pre=spos;
+			_station.ps=i;
+			file_station.seekg(0,std::ios::end);
+			station.erase(shash,spos);
+			station.insert(shash,file_station.tellg());
 			file_station.write(reinterpret_cast<char * >(&_station),sizeof(_station));
 		}
 	}
@@ -541,7 +560,8 @@ int delete_train(){
 }
 void query_ticket(){
 	char now[20],s[50],t[50],q[6];
-	int d[2],fq=0;
+	int d[2],fq=0,cnt1,cnt2;
+	std::pair<unsigned int,int> train1[10005],train2[10005];
 	while(scanf("%s",now)!=EOF){
 		if(now[0]!='-'){
 			nextorder=1;
@@ -564,21 +584,19 @@ void query_ticket(){
 		puts("0");
 		return ;
 	}
-	file_station.seekg(spos,std::ios::beg);
-	file_station.read(reinterpret_cast<char * >(&_station),sizeof(_station));
-	file_station.seekg(tpos,std::ios::beg);
-	file_station.read(reinterpret_cast<char * >(&__station),sizeof(__station));
-	sort(1,_station.cnt,_station.i,_station.ps);
-	sort(1,__station.cnt,__station.i,__station.ps);
+	Get_trainID(train1,spos,cnt1);
+	Get_trainID(train2,tpos,cnt2);
+	sort(1,cnt1,train1);
+	sort(1,cnt2,train2);
 	int i=1,j=1;
-	while(i<=_station.cnt&&j<=__station.cnt){
-		if(_station.i[i]==__station.i[j]){
-			int tpos=train.query(_station.i[i]);
+	while(i<=cnt1&&j<=cnt2){
+		if(train1[i].first==train2[j].first){
+			int tpos=train.query(train1[i].first);
 			file_train.seekg(tpos,std::ios::beg);
 			file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 			int st,tt,p=0,seat=inf,mark=0,di=timeid(d[0],d[1]);
-			for(int k=_station.ps[i];k<=__station.ps[j];++k){
-				if(k==_station.ps[i]){
+			for(int k=train1[i].second;k<=train2[j].second;++k){
+				if(k==train1[i].second){
 					mark=1;
 					st=_train.leave[k];
 					ntime tmp=(ntime){0,0,_train.x[0],_train.x[1]};
@@ -591,7 +609,7 @@ void query_ticket(){
 					}
 					file_seat.seekg(_train.m[di],std::ios::beg);
 					file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
-				} else if(k==__station.ps[j]){
+				} else if(k==train2[j].second){
 					tt=_train.arrive[k];
 					break;
 				}
@@ -608,7 +626,7 @@ void query_ticket(){
 			if(q[0]=='t'||!fq)sort_a[cnt].key=tt-st;
 			else sort_a[cnt].key=p;
 		} else {
-			if(_station.i[i]<__station.i[j])++i;
+			if(train1[i].first<train2[j].first)++i;
 			else ++j;
 		}
 	}
@@ -628,7 +646,8 @@ void query_ticket(){
 }
 void query_transfer(){
 	char now[20],s[50],t[50],q[6];
-	int d[2];
+	int d[2],cnt1,cnt2;
+	std::pair<unsigned int,int> train1[10005],train2[10005];
 	while(scanf("%s",now)!=EOF){
 		if(now[0]!='-'){
 			nextorder=1;
@@ -652,17 +671,16 @@ void query_transfer(){
 		puts("0");
 		return ;
 	}
-	file_station.seekg(spos,std::ios::beg);
-	file_station.read(reinterpret_cast<char * >(&_station),sizeof(_station));
+	Get_trainID(train1,spos,cnt1);
 	//enumerate the train passing by the station S
-	for(int i=1;i<=_station.cnt;++i){
-		ihash=_station.i[i];
+	for(int i=1;i<=cnt1;++i){
+		ihash=train1[i].first;
 		ipos=train.query(ihash);
 		file_train.seekg(ipos,std::ios::beg);
 		file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 		int mark=0,p=0,s=inf,di=timeid(d[0],d[1]);
 		//enumerate the mid station M
-		for(int j=_station.ps[i];j<=_train.n;++j){
+		for(int j=train1[i].second;j<=_train.n;++j){
 			unsigned int nowhash=hash_calc(_train.s[j]);
 			if(nowhash==shash){
 				ntime tmp=(ntime){0,0,_train.x[0],_train.x[1]};
@@ -680,11 +698,10 @@ void query_transfer(){
 				}
 				mhash=nowhash;
 				mpos=station.query(mhash);
-				file_station.seekg(mpos,std::ios::beg);
-				file_station.read(reinterpret_cast<char * >(&__station),sizeof(__station));
+				Get_trainID(train2,mpos,cnt2);
 				//enumerate the train passing by the station M
-				for(int k=1;k<=__station.cnt;++k){
-					_ihash=__station.i[k];
+				for(int k=1;k<=cnt2;++k){
+					_ihash=train2[k].first;
 					if(_ihash==ihash)continue;
 					_ipos=train.query(_ihash);
 					file_train.seekg(_ipos,std::ios::beg);
@@ -693,8 +710,8 @@ void query_transfer(){
 					midtime=timecalc(midtime,_train.arrive[j]);
 					int _mark=0,_p=0,_s=inf,_di=timeid(midtime.m,midtime.d),_gap=0;
 					//find the route
-					for(int l=__station.ps[k];l<=__train.n;++l){
-						if(l==__station.ps[k]){
+					for(int l=train2[k].second;l<=__train.n;++l){
+						if(l==train2[k].second){
 							_mark=l;
 							ntime _tmp=(ntime){0,0,__train.x[0],__train.x[1]};
 							_tmp=timecalc(_tmp,__train.leave[l]);
