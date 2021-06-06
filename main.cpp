@@ -672,6 +672,7 @@ void query_transfer(){
 		return ;
 	}
 	Get_trainID(train1,spos,cnt1);
+	Get_trainID(train2,tpos,cnt2);
 	//enumerate the train passing by the station S
 	for(int i=1;i<=cnt1;++i){
 		ihash=train1[i].first;
@@ -698,7 +699,75 @@ void query_transfer(){
 				}
 				mhash=nowhash;
 				mpos=station.query(mhash);
-				Get_trainID(train2,mpos,cnt2);
+				for(int k=1;k<=cnt2;++k){
+					_ihash=train2[k].first;
+					if(_ihash==ihash)continue;
+					_ipos=train.query(_ihash);
+					file_train.seekg(_ipos,std::ios::beg);
+					file_train.read(reinterpret_cast<char * >(&__train),sizeof(__train));
+					ntime midtime=(ntime){timedecode1(di),timedecode2(di),_train.x[0],_train.x[1]};
+					midtime=timecalc(midtime,_train.arrive[j]);
+					int ti=train2[k].second,si=find_pos(1,__train.n,__train.sh,mhash);
+					if(si==-1)continue;
+					si=__train.ps[si];
+					int _mark=0,_p=0,_s=inf,_di=timeid(midtime.m,midtime.d),_gap=0;
+					for(int l=si;l<=ti;++l){
+						if(l==si){
+							_mark=l;
+							ntime _tmp=(ntime){0,0,__train.x[0],__train.x[1]};
+							_tmp=timecalc(_tmp,__train.leave[l]);
+							int _dil=timeid(__train.d[0]+_tmp.m,__train.d[1]+_tmp.d);
+							int _dir=timeid(__train.d[2]+_tmp.m,__train.d[3]+_tmp.d);
+							if(_di>_dir){
+								_mark=0;
+								break;
+							}
+							_di=std::max(_di,_dil)-_tmp.d;
+							_tmp=(ntime){timedecode1(_di),timedecode2(_di),__train.x[0],__train.x[1]};
+							_tmp=timecalc(_tmp,__train.leave[l]);
+							_gap=_tmp-midtime;
+							if(_gap<0)_gap+=1440,_di++;
+							int _ld=timeid(__train.d[0],__train.d[1]),_rd=timeid(__train.d[2],__train.d[3]);
+							if(_di<_ld||_di>_rd){
+								_mark=0;
+								break;
+							}
+							file_seat.seekg(__train.m[_di],std::ios::beg);
+							file_seat.read(reinterpret_cast<char * >(&__seat),sizeof(__seat));
+						}
+						else if(l==ti){
+							if(!_mark)break;
+							//s (i) -> m (_i) -> t
+							int nowkey=0,_nowkey=0;
+							if(q[0]=='c')nowkey=p+_p;
+							else {
+								nowkey+=_train.arrive[j]-_train.leave[mark];
+								nowkey+=__train.arrive[l]-__train.leave[_mark];
+								nowkey+=_gap;
+							}
+							_nowkey=_train.arrive[j]-_train.leave[mark];
+							if(nowkey<key||(nowkey==key&&_nowkey<_key)){
+								memcpy(sort_a[0].i,_train.i,sizeof(_train.i));
+								memcpy(sort_a[1].i,__train.i,sizeof(__train.i));
+								sort_a[0].p=p,sort_a[1].p=_p;
+								sort_a[0].s=s,sort_a[1].s=_s;
+								sort_a[0].st=_train.leave[mark];
+								sort_a[0].tt=_train.arrive[j];
+								sort_a[0].x[0]=_train.x[0],sort_a[0].x[1]=_train.x[1];
+								sort_a[1].st=__train.leave[_mark];
+								sort_a[1].tt=__train.arrive[l];
+								sort_a[1].x[0]=__train.x[0],sort_a[1].x[1]=__train.x[1];
+								memcpy(mids,_train.s[j],sizeof(_train.s[j]));
+								key=nowkey;_key=_nowkey;
+								gap=_gap;
+							}
+							break;
+						}
+						if(_mark)_p+=__train.p[l],_s=std::min(_s,__seat.s[l]);
+					}
+					if(!_mark)continue;
+				}
+/*				Get_trainID(train2,mpos,cnt2);
 				//enumerate the train passing by the station M
 				for(int k=1;k<=cnt2;++k){
 					_ihash=train2[k].first;
@@ -766,7 +835,7 @@ void query_transfer(){
 					}
 					if(!_mark)continue;
 				}
-			}
+*/			}
 			if(mark)p+=_train.p[j],s=std::min(s,_seat.s[j]);
 		}
 	}
