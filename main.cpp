@@ -631,17 +631,19 @@ void query_transfer(){
 		//enumerate the mid station M
 		for(int j=1;j<=_train.n;++j){
 			unsigned int nowhash=hash_calc(_train.s[j]);
-			if(!mark&&nowhash==shash){
+			if(nowhash==shash){
 				ntime tmp=(ntime){0,0,_train.x[0],_train.x[1]};
 				tmp=timecalc(tmp,_train.leave[j]);
 				di-=tmp.d;
 				mark=j;
 				int ld=timeid(_train.d[0],_train.d[1]),rd=timeid(_train.d[2],_train.d[3]);
 				if(di<ld||di>rd)break;
-			}
-			else if(mark){
-				if(nowhash==thash)continue;
-				mhash=hash_calc(_train.s[j]);
+			} else if(mark){
+				if(nowhash==thash){
+					p+=_train.p[j],s=std::min(s,_train.m[di][j]);
+					continue;
+				}
+				mhash=nowhash;
 				mpos=station.query(mhash);
 				file_station.seekg(mpos,std::ios::beg);
 				file_station.read(reinterpret_cast<char * >(&__station),sizeof(__station));
