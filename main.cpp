@@ -11,8 +11,8 @@ const int inf=0x3f3f3f3f;
 
 int nextorder=0;
 char odr[20];
-BPlus_Tree user("_user",2000000),train("_train",60000000),station("_station",60000000);
-BPlus_Tree order("_order",200000000),queue("_queue",200000000);
+BPlus_Tree user("_user",2000000),train("_train",6000000),station("_station",6000000);
+BPlus_Tree order("_order",2000000),queue("_queue",2000000),dqueue("_dqueue",2000000);
 BPlus_Tree hashtable1("_login",10000),hashtable2("_release",10000);
 BPlus_Tree first_user("_first",100);
 
@@ -335,9 +335,9 @@ struct order_node{
 	char i[25],sp[50],tp[50];
 }_order;
 struct queue_node{
-	int opos,n,pre,di,si,ti,done;
+	int opos,n,nxt,di,si,ti;
 	void operator = (const queue_node &A) {
-		opos=A.opos,n=A.n,di=A.di,si=A.si,ti=A.ti,pre=A.pre,done=A.done;
+		opos=A.opos,n=A.n,di=A.di,si=A.si,ti=A.ti,nxt=A.nxt;
 	}
 }_queue,__queue;
 int add_train(){
@@ -524,9 +524,6 @@ void query_ticket(){
 	int i=1,j=1;
 	while(i<=_station.cnt&&j<=__station.cnt){
 		if(_station.i[i]==__station.i[j]){
-			if(hashtable2.query(_station.i[i])==-1){
-				++i;++j;continue;
-			}
 			int tpos=train.query(_station.i[i]);
 			++i,++j;
 			file_train.seekg(tpos,std::ios::beg);
@@ -609,7 +606,6 @@ void query_transfer(){
 	//enumerate the train passing by the station S
 	for(int i=1;i<=_station.cnt;++i){
 		ihash=_station.i[i];
-		if(hashtable2.query(ihash)==-1)continue;
 		ipos=train.query(ihash);
 		file_train.seekg(ipos,std::ios::beg);
 		file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
@@ -637,7 +633,6 @@ void query_transfer(){
 				for(int k=1;k<=__station.cnt;++k){
 					_ihash=__station.i[k];
 					if(_ihash==ihash)continue;
-					if(hashtable2.query(_ihash)==-1)continue;
 					_ipos=train.query(_ihash);
 					file_train.seekg(_ipos,std::ios::beg);
 					file_train.read(reinterpret_cast<char * >(&__train),sizeof(__train));
@@ -819,16 +814,27 @@ long long buy_ticket(){
 		order.insert(uhash,opos);
 		file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
 		//queue
-		int qpos=queue.query(ihash);
-		_queue.pre=qpos;_queue.done=0;
+		int qpos=dqueue.query(ihash);
+		if(qpos==-1){
+			file_queue.seekg(0,std::ios::end);
+			queue.insert(ihash,file_queue.tellg());
+		} else {
+			dqueue.erase(ihash,qpos);
+			file_queue.seekg(0,std::ios::end);
+			int _qpos=file_queue.tellg();
+			file_queue.seekg(qpos,std::ios::beg);
+			file_queue.read(reinterpret_cast<char * >(&_queue),sizeof(_queue));
+			_queue.nxt=_qpos;
+			file_queue.seekg(qpos,std::ios::beg);
+			file_queue.write(reinterpret_cast<char * >(&_queue),sizeof(_queue));
+		}
+		_queue.nxt=-1;
 		_queue.opos=opos;
 		_queue.si=si,_queue.ti=ti;
 		_queue.di=di;
 		_queue.n=n;
-		queue.erase(ihash,qpos);
 		file_queue.seekg(0,std::ios::end);
-		qpos=file_queue.tellg();
-		queue.insert(ihash,qpos);
+		dqueue.insert(ihash,file_queue.tellg());
 		file_queue.write(reinterpret_cast<char * >(&_queue),sizeof(_queue));
 		return -2;
 	}
@@ -889,21 +895,28 @@ int refund_ticket(){
 		file_order.seekg(opos,std::ios::beg);
 		file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
 		unsigned int ihash=hash_calc(_order.i);
-		int qpos=queue.query(ihash);
+		int qpos=queue.query(ihash),_qpos=-1;
 		while(qpos!=-1){
 			file_queue.seekg(qpos,std::ios::beg);
 			file_queue.read(reinterpret_cast<char * >(&_queue),sizeof(_queue));
-			if(_queue.done){
-				qpos=_queue.pre;
-				continue;
-			}
 			if(_queue.opos==opos){
-				_queue.done=1;
-				file_queue.seekg(qpos,std::ios::beg);
-				file_queue.write(reinterpret_cast<char * >(&_queue),sizeof(_queue));
-				break;
+				//delete node
+				if(_qpos==-1){
+					queue.erase(ihash,qpos);
+					if(_queue.nxt!=-1)queue.insert(ihash,_queue.nxt);
+				} else {
+					__queue.nxt=_queue.nxt;
+					file_queue.seekg(_qpos,std::ios::beg);
+					file_queue.write(reinterpret_cast<char * >(&__queue),sizeof(__queue));
+				}
+				if(_queue.nxt==-1){
+					dqueue.erase(ihash,qpos);
+					if(_qpos!=-1)dqueue.insert(ihash,_qpos);
+				}
+			} else {
+				__queue=_queue,_qpos=qpos;
 			}
-			qpos=_queue.pre;
+			qpos=_queue.nxt;
 		}
 		return 0;
 	}
@@ -919,36 +932,38 @@ int refund_ticket(){
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.write(reinterpret_cast<char * >(&_train),sizeof(_train));
 	//queue
-	while(true){
-		int qpos=queue.query(ihash),mark=0,_qpos;
-		if(qpos==-1)return 0;
-		while(qpos!=-1){
-			file_queue.seekg(qpos,std::ios::beg);
-			file_queue.read(reinterpret_cast<char * >(&_queue),sizeof(_queue));
-			if(_queue.done){
-				qpos=_queue.pre;
-				continue;
+	int qpos=queue.query(ihash),_qpos=-1;
+	while(qpos!=-1){
+		file_queue.seekg(qpos,std::ios::beg);
+		file_queue.read(reinterpret_cast<char * >(&_queue),sizeof(_queue));
+		int s=inf;
+		for(int i=_queue.si;i<_queue.ti;++i)s=std::min(s,_train.m[_queue.di][i]);
+		if(s>=_queue.n){
+			for(int i=_queue.si;i<_queue.ti;++i)_train.m[_queue.di][i]-=_queue.n;
+			file_train.seekg(ipos,std::ios::beg);
+			file_train.write(reinterpret_cast<char * >(&_train),sizeof(_train));
+			file_order.seekg(_queue.opos,std::ios::beg);
+			file_order.read(reinterpret_cast<char * >(&_order),sizeof(_order));
+			_order.sta=1;
+			file_order.seekg(_queue.opos,std::ios::beg);
+			file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
+			//delete node
+			if(_qpos==-1){
+				queue.erase(ihash,qpos);
+				if(_queue.nxt!=-1)queue.insert(ihash,_queue.nxt);
+			} else {
+				__queue.nxt=_queue.nxt;
+				file_queue.seekg(_qpos,std::ios::beg);
+				file_queue.write(reinterpret_cast<char * >(&__queue),sizeof(__queue));
 			}
-			int s=inf;
-			for(int i=_queue.si;i<_queue.ti;++i)s=std::min(s,_train.m[_queue.di][i]);
-			if(s>=_queue.n){
-				mark=1,__queue=_queue,_qpos=qpos;
+			if(_queue.nxt==-1){
+				dqueue.erase(ihash,qpos);
+				if(_qpos!=-1)dqueue.insert(ihash,_qpos);
 			}
-			qpos=_queue.pre;
+		} else {
+			__queue=_queue,_qpos=qpos;
 		}
-		if(!mark)return 0;
-		for(int i=__queue.si;i<__queue.ti;++i)
-			_train.m[__queue.di][i]-=__queue.n;
-		__queue.done=1;
-		file_queue.seekg(_qpos,std::ios::beg);
-		file_queue.write(reinterpret_cast<char * >(&__queue),sizeof(__queue));
-		file_train.seekg(ipos,std::ios::beg);
-		file_train.write(reinterpret_cast<char * >(&_train),sizeof(_train));
-		file_order.seekg(__queue.opos,std::ios::beg);
-		file_order.read(reinterpret_cast<char * >(&_order),sizeof(_order));
-		_order.sta=1;
-		file_order.seekg(__queue.opos,std::ios::beg);
-		file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
+		qpos=_queue.nxt;
 	}
 	return 0;
 }
@@ -957,7 +972,7 @@ int refund_ticket(){
 void clean(){
 	hashtable1.clear();hashtable2.clear();
 	user.clear();train.clear();station.clear();
-	order.clear();queue.clear();
+	order.clear();queue.clear();dqueue.clear();
 	first_user.clear();
 	file_user.close();
 	file_user.open("user",std::fstream::out|std::ios::trunc);
