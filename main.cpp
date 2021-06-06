@@ -289,24 +289,33 @@ ntime timecalc(ntime p,int t){
 	n+=t;
 	h+=n/60;n%=60;
 	d+=h/24;h%=24;
-	while(d>months[m])d-=months[m],m++;
-	if(m>12)m-=12;
+	while(d>months[m]){
+		d-=months[m],m++;
+		if(m>12)m-=12;
+	}
 	return (ntime){m,d,h,n};
 }
 int timeid(int m,int d){
 	if(m==6)return d;
 	else if(m==7)return d+months[6];
 	else if(m==8)return d+months[6]+months[7];
-	else return d+months[6]+months[7]+months[8];
+	else if(m==9)return d+months[6]+months[7]+months[8];
+	else return d+months[6]+months[7]+months[8]+months[9];
 }
 int timedecode1(int d){
 	int res=6;
-	while(d>months[res])d-=months[res],res++;
+	while(d>months[res]){
+		d-=months[res],res++;
+		if(res>12)res-=12;
+	}
 	return res;
 }
 int timedecode2(int d){
 	int res=6;
-	while(d>months[res])d-=months[res],res++;
+	while(d>months[res]){
+		d-=months[res],res++;
+		if(res>12)res-=12;
+	}
 	return d;
 }
 
@@ -333,14 +342,14 @@ struct queue_node{
 }_queue,__queue;
 int add_train(){
 	//read the information
-	char now[5];int m;
+	char now[5];
 	for(int i=1;i<=10;++i){
 		scanf("%s",now);
 		if(now[1]=='i')scanf("%s",_train.i);
 		else if(now[1]=='n')scanf("%d",&_train.n);
-		else if(now[1]=='m')scanf("%d",&m);
+		else if(now[1]=='m')scanf("%d",&_train.ms);
 		else if(now[1]=='s'){
-			char stations[5005];scanf("%s",stations);
+			char stations[6005];scanf("%s",stations);
 			int cnt=0,len=strlen(stations);
 			for(int j=0;j<len;++j){
 				++cnt;int pos=0;
@@ -385,10 +394,10 @@ int add_train(){
 	unsigned int ihash=hash_calc(_train.i);
 	if(train.query(ihash)!=-1)return -1;
  	//process the information
-	_train.leave[0]=0;_train.ms=m;
-	for(int j=1;j<=92;++j)_train.m[j][1]=m;
+	_train.leave[1]=0;
+	for(int j=1;j<=92;++j)_train.m[j][1]=_train.ms;
 	for(int i=2;i<=_train.n;++i){
-		for(int j=1;j<=92;++j)_train.m[j][i]=m;
+		for(int j=1;j<=92;++j)_train.m[j][i]=_train.ms;
 		_train.arrive[i]=_train.leave[i-1]+_train.t[i-1];
 		if(i!=_train.n)_train.leave[i]=_train.arrive[i]+_train.o[i-1];
 	}
@@ -466,9 +475,9 @@ int query_train(){
 	return 0;
 }
 int delete_train(){
-	char now[5],i[25];
-	scanf("%s%s",now,i);
-	unsigned int ihash=hash_calc(i);
+	char now[5],_i[25];
+	scanf("%s%s",now,_i);
+	unsigned int ihash=hash_calc(_i);
 	int nowpos=train.query(ihash);
 	//not exist
 	if(nowpos==-1)return -1;
@@ -570,10 +579,11 @@ void query_ticket(){
 		}
 	}
 	sort(1,cnt,sort_a);
+	ntime tmp;
 	printf("%d\n",cnt);
 	for(i=1;i<=cnt;++i){
 		printf("%s %s ",sort_a[i].i,s);
-		ntime tmp=(ntime){d[0],d[1],sort_a[i].x[0],sort_a[i].x[1]};
+		tmp=(ntime){d[0],d[1],sort_a[i].x[0],sort_a[i].x[1]};
 		tmp=timecalc(tmp,sort_a[i].st);
 		tmp.m=d[0],tmp.d=d[1];
 		tmp.output();
