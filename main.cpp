@@ -406,7 +406,22 @@ int add_train(){
 	int nowpos=file_train.tellg();
 	train.insert(ihash,nowpos);
 	file_train.write(reinterpret_cast<char * >(&_train),sizeof(_train));
+	return 0;
+}
+int release_train(){
+	char now[5],i[25];
+	scanf("%s%s",now,i);
+	unsigned int ihash=hash_calc(i);
+	//not exist
+	if(train.query(ihash)==-1)return -1;
+	//have been released
+	if(hashtable2.query(ihash)==1)return -1;
+	//legal
+	hashtable2.insert(ihash,1);
 	//write station
+	int ipos=train.query(ihash);
+	file_train.seekg(ipos,std::ios::beg);
+	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 	for(int i=1;i<=_train.n;++i){
 		unsigned int shash=hash_calc(_train.s[i]);
 		int spos=station.query(shash);
@@ -426,18 +441,6 @@ int add_train(){
 			file_station.write(reinterpret_cast<char * >(&_station),sizeof(_station));
 		}
 	}
-	return 0;
-}
-int release_train(){
-	char now[5],i[25];
-	scanf("%s%s",now,i);
-	unsigned int ihash=hash_calc(i);
-	//not exist
-	if(train.query(ihash)==-1)return -1;
-	//have been released
-	if(hashtable2.query(ihash)==1)return -1;
-	//legal
-	hashtable2.insert(ihash,1);
 	return 0;
 }
 int query_train(){
@@ -485,23 +488,6 @@ int delete_train(){
 	if(hashtable2.query(ihash)==1)return -1;
 	//delete train
 	train.erase(ihash,nowpos);
-	//delete station
-	file_train.seekg(nowpos,std::ios::beg);
-	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
-	for(int i=1;i<=_train.n;++i){
-		unsigned int shash=hash_calc(_train.s[i]);
-		int spos=station.query(shash);
-		file_station.seekg(spos,std::ios::beg);
-		file_station.read(reinterpret_cast<char * >(&_station),sizeof(_station));
-		for(int j=1;j<=_station.cnt;++j)
-			if(_station.i[j]==ihash){
-				_station.i[j]=_station.i[_station.cnt];
-				_station.cnt--;
-				break;
-			}
-		file_station.seekg(spos,std::ios::beg);
-		file_station.write(reinterpret_cast<char * >(&_station),sizeof(_station));
-	}
 	return 0;
 }
 void query_ticket(){
