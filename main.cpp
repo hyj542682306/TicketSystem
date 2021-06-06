@@ -122,6 +122,15 @@ void sort(int l,int r,unsigned int *a,short *b){
 	b[l]=b[i];b[i]=_base;
 	sort(l,i-1,a,b),sort(i+1,r,a,b);
 }
+int find_pos(int l,int r,unsigned int *a,unsigned int x){
+	int ans=-1;
+	while(l<=r){
+		int mid=(l+r)>>1;
+		if(a[mid]>=x)ans=mid,r=mid-1;
+		else l=mid+1;
+	}
+	return a[ans]==x?ans:-1;
+}
 
 //user
 struct user_node{
@@ -340,6 +349,8 @@ struct train_node{
 	char i[25],s[105][50],y;
 	int n,m[100],o[105],p[105],x[2],t[105],d[4],ms;
 	int arrive[105],leave[105];
+	unsigned int sh[105];
+	short ps[105];
 }_train,__train;
 struct station_node{
 	int cnt;
@@ -436,6 +447,12 @@ int release_train(){
 	int ipos=train.query(ihash);
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
+	//write itself
+	for(int i=1;i<=_train.n;++i){
+		_train.sh[i]=hash_calc(_train.s[i]);
+		_train.ps[i]=i;
+	}
+	sort(1,_train.n,_train.sh,_train.ps);
 	//write seat
 	int dl=timeid(_train.d[0],_train.d[1]),dr=timeid(_train.d[2],_train.d[3]);
 	for(int i=dl;i<=dr;++i){
@@ -782,11 +799,13 @@ long long buy_ticket(){
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 	if(n>_train.ms)return -1;
-	int di=timeid(d[0],d[1]),mark=0,s=inf,p=0,si=-1,ti=-1;
+	int di=timeid(d[0],d[1]),mark=0,s=inf,p=0;
+	int si=find_pos(1,_train.n,_train.sh,fhash),ti=find_pos(1,_train.n,_train.sh,thash);
+	if(si==-1||ti==-1)return -1;
+	si=_train.ps[si],ti=_train.ps[ti];
 	ntime tmp=(ntime){0,0,_train.x[0],_train.x[1]};
-	for(int i=1;i<=_train.n;++i){
-		unsigned int nowhash=hash_calc(_train.s[i]);
-		if(nowhash==fhash){
+	for(int i=si;i<ti;++i){
+		if(i==si){
 			tmp=timecalc(tmp,_train.leave[i]);
 			di-=tmp.d;
 			mark=1;
@@ -798,11 +817,8 @@ long long buy_ticket(){
 			}
 			file_seat.seekg(_train.m[di],std::ios::beg);
 			file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
-		} else if(nowhash==thash){
-			ti=i;
-			break;
 		}
-		if(mark)p+=_train.p[i],s=std::min(s,_seat.s[i]);
+		p+=_train.p[i],s=std::min(s,_seat.s[i]);
 	}
 	if(!mark)return -1;
 	if(s<n&&(q[0]=='f'||!fq))return -1;
