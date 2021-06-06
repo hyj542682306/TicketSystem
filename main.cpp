@@ -4,7 +4,7 @@
 #include<iostream>
 #include<sstream>
 #include<fstream>
-#include "BPlus_Tree.cpp"
+#include "BPlus_Tree.hpp"
 
 
 const int inf=0x3f3f3f3f;
