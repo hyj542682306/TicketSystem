@@ -332,36 +332,38 @@ int modify_profile(){
 int months[13]={inf,31,28,31,30,31,30,31,31,30,31,30,31};
 int minsum[13]={inf,0,44640,84960,129600,172800,217440,260640,305280,349920,393120,437760,480960};
 struct ntime{
-	int m,d,h,n;
+	int month,day,hour,minute;
 	void output(char c='\0'){
-		if(m<10)printf("0");
-		printf("%d-",m);
-		if(d<10)printf("0");
-		printf("%d ",d);
-		if(h<10)printf("0");
-		printf("%d:",h);
-		if(n<10)printf("0");
-		printf("%d",n);
+		if(month<10)printf("0");
+		printf("%d-",month);
+		if(day<10)printf("0");
+		printf("%d ",day);
+		if(hour<10)printf("0");
+		printf("%d:",hour);
+		if(minute<10)printf("0");
+		printf("%d",minute);
 		if(c!='\0')putchar(c);
 	}
 	bool operator < (const ntime &A) const {
-		return m<A.m||(m==A.m&&d<A.d)||
-			(m==A.m&&d==A.d&&h<A.h)||(m==A.m&&d==A.d&&h==A.h&&n<=A.n);
+		return month<A.month||(month==A.month&&day<A.day)||
+			(month==A.month&&day==A.day&&hour<A.hour)||
+			(month==A.month&&day==A.day&&hour==A.hour&&minute<=A.minute);
 	}
 	int operator - (const ntime &A) const {
-		return minsum[m]+d*24*60+h*60+n-minsum[A.m]-A.d*24*60-A.h*60-A.n;
+		return minsum[month]+day*24*60+hour*60+minute-
+			   minsum[A.month]-A.day*24*60-A.hour*60-A.minute;
 	}
 };
 ntime timecalc(ntime p,int t){
-	int m=p.m,d=p.d,h=p.h,n=p.n;
-	n+=t;
-	h+=n/60;n%=60;
-	d+=h/24;h%=24;
-	while(d>months[m]){
-		d-=months[m],m++;
-		if(m>12)m-=12;
+	int month=p.month,day=p.day,hour=p.hour,minute=p.minute;
+	minute+=t;
+	hour+=minute/60;minute%=60;
+	day+=hour/24;hour%=24;
+	while(day>months[month]){
+		day-=months[month],month++;
+		if(month>12)month-=12;
 	}
-	return (ntime){m,d,h,n};
+	return (ntime){month,day,hour,minute};
 }
 int timeid(int m,int d){
 	if(m==6)return d;
@@ -370,7 +372,7 @@ int timeid(int m,int d){
 	else if(m==9)return d+months[6]+months[7]+months[8];
 	else return d+months[6]+months[7]+months[8]+months[9];
 }
-int timedecode1(int d){
+int Decode_month(int d){
 	int res=6;
 	while(d>months[res]){
 		d-=months[res],res++;
@@ -378,7 +380,7 @@ int timedecode1(int d){
 	}
 	return res;
 }
-int timedecode2(int d){
+int Decode_day(int d){
 	int res=6;
 	while(d>months[res]){
 		d-=months[res],res++;
@@ -388,33 +390,42 @@ int timedecode2(int d){
 }
 
 //train
-struct seat_node{
-	int s[105];
+struct seat{
+	int day_seat[105];
 	void fill(int n,int x){
-		for(int i=1;i<n;++i)s[i]=x;
+		for(int i=1;i<n;++i)day_seat[i]=x;
 	}
 }_seat,__seat;
-struct train_node{
-	char i[25],s[105][50],y;
-	int n,m[100],o[105],p[105],x[2],t[105],d[4],ms;
-	int arrive[105],leave[105];
-	unsigned int sh[105];
-	short ps[105];
+struct train{
+	char trainID[25],stations[105][50],type;
+	int stationNum,seatNum;
+	int seatPos[100],stopoverTimes[105],prices[105],startTime[2],travelTimes[105],saleDate[4];
+	int arriveTime[105],leaveTime[105];
+	unsigned int stations_hash[105];
+	short original_pos[105];
 }_train,__train;
-struct station_node{
-	int cnt;
-	unsigned int i[10005];
-	short ps[10005];
+struct station{
+	int trainNum;
+	unsigned int trainHash[10005];
+	short stationOrder[10005];
 }_station,__station;
-struct order_node{
-	int sta,n,pre,di,si,ti,cnt,p;
-	ntime s,t;
-	char i[25],sp[50],tp[50];
+struct order{
+	int prePos;
+	int status,seatNum,date;
+	int startOrder,endOrder,cnt,price;
+	ntime startTime,endTime;
+	char trainID[25],startStation[50],endStation[50];
 }_order;
-struct queue_node{
-	int opos,n,nxt,di,si,ti;
-	void operator = (const queue_node &A) {
-		opos=A.opos,n=A.n,di=A.di,si=A.si,ti=A.ti,nxt=A.nxt;
+struct queue{
+	int nxtPos;
+	int orderPos,seatNum,date,startOrder,endOrder;
+	void operator = (const queue &A) {
+		orderPos=A.orderPos;
+		seatNum=A.seatNum;
+		date=A.date;
+		startOrder=A.startOrder;
+		endOrder=A.endOrder;
+		nxtPos=A.nxtPos;
 	}
 }_queue,__queue;
 int add_train(){
@@ -422,16 +433,16 @@ int add_train(){
 	char now[5];
 	for(int i=1;i<=10;++i){
 		scanf("%s",now);
-		if(now[1]=='i')scanf("%s",_train.i);
-		else if(now[1]=='n')scanf("%d",&_train.n);
-		else if(now[1]=='m')scanf("%d",&_train.ms);
+		if(now[1]=='i')scanf("%s",_train.trainID);
+		else if(now[1]=='n')scanf("%d",&_train.stationNum);
+		else if(now[1]=='m')scanf("%d",&_train.seatNum);
 		else if(now[1]=='s'){
 			char stations[6005];scanf("%s",stations);
 			int cnt=0,len=strlen(stations);
 			for(int j=0;j<len;++j){
 				++cnt;int pos=0;
-				while(stations[j]!='|'&&j<len)_train.s[cnt][pos++]=stations[j],++j;
-				_train.s[cnt][pos]='\0';
+				while(stations[j]!='|'&&j<len)_train.stations[cnt][pos++]=stations[j],++j;
+				_train.stations[cnt][pos]='\0';
 			}
 		}
 		else if(now[1]=='p'){
@@ -440,17 +451,17 @@ int add_train(){
 			for(int j=0;j<len;++j){
 				++cnt;int tmp=0;
 				while(prices[j]!='|'&&j<len)tmp=tmp*10+prices[j]-'0',++j;
-				_train.p[cnt]=tmp;
+				_train.prices[cnt]=tmp;
 			}
 		}
-		else if(now[1]=='x')scanf("%d:%d",&_train.x[0],&_train.x[1]);
+		else if(now[1]=='x')scanf("%d:%d",&_train.startTime[0],&_train.startTime[1]);
 		else if(now[1]=='t'){
 			char times[1005];scanf("%s",times);
 			int cnt=0,len=strlen(times);
 			for(int j=0;j<len;++j){
 				++cnt;int tmp=0;
 				while(times[j]!='|'&&j<len)tmp=tmp*10+times[j]-'0',++j;
-				_train.t[cnt]=tmp;
+				_train.travelTimes[cnt]=tmp;
 			}
 		}
 		else if(now[1]=='o'){
@@ -460,21 +471,21 @@ int add_train(){
 				for(int j=0;j<len;++j){
 					++cnt;int tmp=0;
 					while(stops[j]!='|'&&j<len)tmp=tmp*10+stops[j]-'0',++j;
-					_train.o[cnt]=tmp;
+					_train.stopoverTimes[cnt]=tmp;
 				}
 			}
 		}
-		else if(now[1]=='d')scanf("%d-%d|%d-%d",&_train.d[0],&_train.d[1],&_train.d[2],&_train.d[3]);
-		else std::cin>>_train.y;
+		else if(now[1]=='d')scanf("%d-%d|%d-%d",&_train.saleDate[0],&_train.saleDate[1],&_train.saleDate[2],&_train.saleDate[3]);
+		else std::cin>>_train.type;
 	}
 	//illegal
-	unsigned int ihash=hash_calc(_train.i);
+	unsigned int ihash=hash_calc(_train.trainID);
 	if(trains.query(ihash)!=-1)return -1;
  	//process the information
-	_train.leave[1]=0;
-	for(int i=2;i<=_train.n;++i){
-		_train.arrive[i]=_train.leave[i-1]+_train.t[i-1];
-		if(i!=_train.n)_train.leave[i]=_train.arrive[i]+_train.o[i-1];
+	_train.leaveTime[1]=0;
+	for(int i=2;i<=_train.stationNum;++i){
+		_train.arriveTime[i]=_train.leaveTime[i-1]+_train.travelTimes[i-1];
+		if(i!=_train.stationNum)_train.leaveTime[i]=_train.arriveTime[i]+_train.stopoverTimes[i-1];
 	}
 	//write train
 	file_train.seekg(0,std::ios::end);
@@ -497,38 +508,39 @@ int release_train(){
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 	//write itself
-	for(int i=1;i<=_train.n;++i){
-		_train.sh[i]=hash_calc(_train.s[i]);
-		_train.ps[i]=i;
+	for(int i=1;i<=_train.stationNum;++i){
+		_train.stations_hash[i]=hash_calc(_train.stations[i]);
+		_train.original_pos[i]=i;
 	}
-	sort(1,_train.n,_train.sh,_train.ps);
+	sort(1,_train.stationNum,_train.stations_hash,_train.original_pos);
 	//write seat
-	int dl=timeid(_train.d[0],_train.d[1]),dr=timeid(_train.d[2],_train.d[3]);
+	int dl=timeid(_train.saleDate[0],_train.saleDate[1]);
+	int dr=timeid(_train.saleDate[2],_train.saleDate[3]);
 	for(int i=dl;i<=dr;++i){
 		file_seat.seekg(0,std::ios::end);
-		_train.m[i]=file_seat.tellg();
-		_seat.fill(_train.n,_train.ms);
+		_train.seatPos[i]=file_seat.tellg();
+		_seat.fill(_train.stationNum,_train.seatNum);
 		file_seat.write(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 	}
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.write(reinterpret_cast<char *>(&_train),sizeof(_train));
 	//write station
-	for(int i=1;i<=_train.n;++i){
-		unsigned int shash=hash_calc(_train.s[i]);
+	for(int i=1;i<=_train.stationNum;++i){
+		unsigned int shash=hash_calc(_train.stations[i]);
 		int spos=stations.query(shash);
 		if(spos==-1){
 			file_station.seekg(0,std::ios::end);
 			stations.insert(shash,file_station.tellg());
-			_station.cnt=1;
-			_station.i[_station.cnt]=ihash;
-			_station.ps[_station.cnt]=i;
+			_station.trainNum=1;
+			_station.trainHash[_station.trainNum]=ihash;
+			_station.stationOrder[_station.trainNum]=i;
 			file_station.write(reinterpret_cast<char * >(&_station),sizeof(_station));
 		} else {
 			file_station.seekg(spos,std::ios::beg);
 			file_station.read(reinterpret_cast<char * >(&_station),sizeof(_station));
-			_station.cnt++;
-			_station.i[_station.cnt]=ihash;
-			_station.ps[_station.cnt]=i;
+			_station.trainNum++;
+			_station.trainHash[_station.trainNum]=ihash;
+			_station.stationOrder[_station.trainNum]=i;
 			file_station.seekg(spos,std::ios::beg);
 			file_station.write(reinterpret_cast<char * >(&_station),sizeof(_station));
 		}
@@ -550,27 +562,28 @@ int query_train(){
 	if(nowpos==-1)return -1;
 	file_train.seekg(nowpos,std::ios::beg);
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
-	int ld=timeid(_train.d[0],_train.d[1]),rd=timeid(_train.d[2],_train.d[3]);
+	int ld=timeid(_train.saleDate[0],_train.saleDate[1]);
+	int rd=timeid(_train.saleDate[2],_train.saleDate[3]);
 	if(di<ld||di>rd)return -1;
-	if(hashtable2.query(ihash)==-1)_seat.fill(_train.n,_train.ms);
+	if(hashtable2.query(ihash)==-1)_seat.fill(_train.stationNum,_train.seatNum);
 	else {
-		file_seat.seekg(_train.m[di],std::ios::beg);
+		file_seat.seekg(_train.seatPos[di],std::ios::beg);
 		file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 	}
-	printf("%s %c\n",_train.i,_train.y);
-	ntime et=(ntime){d[0],d[1],_train.x[0],_train.x[1]};
+	printf("%s %c\n",_train.trainID,_train.type);
+	ntime et=(ntime){d[0],d[1],_train.startTime[0],_train.startTime[1]};
 	int psum=0;
-	for(int i=1;i<=_train.n;++i){
-		printf("%s ",_train.s[i]);
+	for(int i=1;i<=_train.stationNum;++i){
+		printf("%s ",_train.stations[i]);
 		if(i==1)printf("xx-xx xx:xx");
-		else timecalc(et,_train.arrive[i]).output();
+		else timecalc(et,_train.arriveTime[i]).output();
 		printf(" -> ");
-		if(i==_train.n)printf("xx-xx xx:xx ");
-		else timecalc(et,_train.leave[i]).output(' ');
-		if(i!=1)psum+=_train.p[i-1];
+		if(i==_train.stationNum)printf("xx-xx xx:xx ");
+		else timecalc(et,_train.leaveTime[i]).output(' ');
+		if(i!=1)psum+=_train.prices[i-1];
 		printf("%d ",psum);
-		if(i==_train.n)printf("x\n");
-		else printf("%d\n",_seat.s[i]);
+		if(i==_train.stationNum)printf("x\n");
+		else printf("%d\n",_seat.day_seat[i]);
 	}
 	return 0;
 }
@@ -616,47 +629,48 @@ void query_ticket(){
 	file_station.read(reinterpret_cast<char * >(&_station),sizeof(_station));
 	file_station.seekg(tpos,std::ios::beg);
 	file_station.read(reinterpret_cast<char * >(&__station),sizeof(__station));
-	sort(1,_station.cnt,_station.i,_station.ps);
-	sort(1,__station.cnt,__station.i,__station.ps);
+	sort(1,_station.trainNum,_station.trainHash,_station.stationOrder);
+	sort(1,__station.trainNum,__station.trainHash,__station.stationOrder);
 	int i=1,j=1;
-	while(i<=_station.cnt&&j<=__station.cnt){
-		if(_station.i[i]==__station.i[j]){
-			int ipos=trains.query(_station.i[i]);
+	while(i<=_station.trainNum&&j<=__station.trainNum){
+		if(_station.trainHash[i]==__station.trainHash[j]){
+			int ipos=trains.query(_station.trainHash[i]);
 			file_train.seekg(ipos,std::ios::beg);
 			file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 			int st,tt,p=0,seat=inf,mark=0,di=timeid(d[0],d[1]);
-			for(int k=_station.ps[i];k<=__station.ps[j];++k){
-				if(k==_station.ps[i]){
+			for(int k=_station.stationOrder[i];k<=__station.stationOrder[j];++k){
+				if(k==_station.stationOrder[i]){
 					mark=1;
-					st=_train.leave[k];
-					ntime tmp=(ntime){0,0,_train.x[0],_train.x[1]};
+					st=_train.leaveTime[k];
+					ntime tmp=(ntime){0,0,_train.startTime[0],_train.startTime[1]};
 					tmp=timecalc(tmp,st);
-					di-=tmp.d;
-					int ld=timeid(_train.d[0],_train.d[1]),rd=timeid(_train.d[2],_train.d[3]);
+					di-=tmp.day;
+					int ld=timeid(_train.saleDate[0],_train.saleDate[1]);
+					int rd=timeid(_train.saleDate[2],_train.saleDate[3]);
 					if(di<ld||di>rd){
 						mark=0;
 						break;
 					}
-					file_seat.seekg(_train.m[di],std::ios::beg);
+					file_seat.seekg(_train.seatPos[di],std::ios::beg);
 					file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
-				} else if(k==__station.ps[j]){
-					tt=_train.arrive[k];
+				} else if(k==__station.stationOrder[j]){
+					tt=_train.arriveTime[k];
 					break;
 				}
-				if(mark)p+=_train.p[k],seat=std::min(seat,_seat.s[k]);
+				if(mark)p+=_train.prices[k],seat=std::min(seat,_seat.day_seat[k]);
 			}
 			++i,++j;
 			if(!mark)continue;
 			++cnt;
-			memcpy(sort_a[cnt].i,_train.i,sizeof(_train.i));
+			memcpy(sort_a[cnt].i,_train.trainID,sizeof(_train.trainID));
 			sort_a[cnt].p=p;
 			sort_a[cnt].s=seat;
 			sort_a[cnt].st=st,sort_a[cnt].tt=tt;
-			sort_a[cnt].x[0]=_train.x[0],sort_a[cnt].x[1]=_train.x[1];
+			sort_a[cnt].x[0]=_train.startTime[0],sort_a[cnt].x[1]=_train.startTime[1];
 			if(q[0]=='t'||!fq)sort_a[cnt].key=tt-st;
 			else sort_a[cnt].key=p;
 		} else {
-			if(_station.i[i]<__station.i[j])++i;
+			if(_station.trainHash[i]<__station.trainHash[j])++i;
 			else ++j;
 		}
 	}
@@ -667,7 +681,7 @@ void query_ticket(){
 		printf("%s %s ",sort_a[i].i,s);
 		tmp=(ntime){d[0],d[1],sort_a[i].x[0],sort_a[i].x[1]};
 		tmp=timecalc(tmp,sort_a[i].st);
-		tmp.m=d[0],tmp.d=d[1];
+		tmp.month=d[0],tmp.day=d[1];
 		tmp.output();
 		printf(" -> %s ",t);
 		timecalc(tmp,sort_a[i].tt-sort_a[i].st).output(' ');
@@ -705,65 +719,67 @@ void query_transfer(){
 	file_station.seekg(tpos,std::ios::beg);
 	file_station.read(reinterpret_cast<char * >(&__station),sizeof(__station));
 	//enumerate the train passing by the station S
-	for(int i=1;i<=_station.cnt;++i){
-		ihash=_station.i[i];
+	for(int i=1;i<=_station.trainNum;++i){
+		ihash=_station.trainHash[i];
 		ipos=trains.query(ihash);
 		file_train.seekg(ipos,std::ios::beg);
 		file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 		int mark=0,p=0,s=inf,di=timeid(d[0],d[1]);
 		//enumerate the mid station M
-		for(int j=_station.ps[i];j<=_train.n;++j){
-			unsigned int nowhash=hash_calc(_train.s[j]);
+		for(int j=_station.stationOrder[i];j<=_train.stationNum;++j){
+			unsigned int nowhash=hash_calc(_train.stations[j]);
 			if(nowhash==shash){
-				ntime tmp=(ntime){0,0,_train.x[0],_train.x[1]};
-				tmp=timecalc(tmp,_train.leave[j]);
-				di-=tmp.d;
+				ntime tmp=(ntime){0,0,_train.startTime[0],_train.startTime[1]};
+				tmp=timecalc(tmp,_train.leaveTime[j]);
+				di-=tmp.day;
 				mark=j;
-				int ld=timeid(_train.d[0],_train.d[1]),rd=timeid(_train.d[2],_train.d[3]);
+				int ld=timeid(_train.saleDate[0],_train.saleDate[1]);
+				int rd=timeid(_train.saleDate[2],_train.saleDate[3]);
 				if(di<ld||di>rd)break;
-				file_seat.seekg(_train.m[di],std::ios::beg);
+				file_seat.seekg(_train.seatPos[di],std::ios::beg);
 				file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 			} else if(mark){
 				if(nowhash==thash){
-					p+=_train.p[j],s=std::min(s,_seat.s[j]);
+					p+=_train.prices[j],s=std::min(s,_seat.day_seat[j]);
 					continue;
 				}
 				mhash=nowhash;
 				mpos=stations.query(mhash);
-				for(int k=1;k<=__station.cnt;++k){
-					_ihash=__station.i[k];
+				for(int k=1;k<=__station.trainNum;++k){
+					_ihash=__station.trainHash[k];
 					if(_ihash==ihash)continue;
 					_ipos=trains.query(_ihash);
 					file_train.seekg(_ipos,std::ios::beg);
 					file_train.read(reinterpret_cast<char * >(&__train),sizeof(__train));
-					ntime midtime=(ntime){timedecode1(di),timedecode2(di),_train.x[0],_train.x[1]};
-					midtime=timecalc(midtime,_train.arrive[j]);
-					int ti=__station.ps[k],si=find_pos(1,__train.n,__train.sh,mhash);
+					ntime midtime=(ntime){Decode_month(di),Decode_day(di),_train.startTime[0],_train.startTime[1]};
+					midtime=timecalc(midtime,_train.arriveTime[j]);
+					int ti=__station.stationOrder[k],si=find_pos(1,__train.stationNum,__train.stations_hash,mhash);
 					if(si==-1)continue;
-					si=__train.ps[si];
-					int _mark=0,_p=0,_s=inf,_di=timeid(midtime.m,midtime.d),_gap=0;
+					si=__train.original_pos[si];
+					int _mark=0,_p=0,_s=inf,_di=timeid(midtime.month,midtime.day),_gap=0;
 					for(int l=si;l<=ti;++l){
 						if(l==si){
 							_mark=l;
-							ntime _tmp=(ntime){0,0,__train.x[0],__train.x[1]};
-							_tmp=timecalc(_tmp,__train.leave[l]);
-							int _dil=timeid(__train.d[0]+_tmp.m,__train.d[1]+_tmp.d);
-							int _dir=timeid(__train.d[2]+_tmp.m,__train.d[3]+_tmp.d);
+							ntime _tmp=(ntime){0,0,__train.startTime[0],__train.startTime[1]};
+							_tmp=timecalc(_tmp,__train.leaveTime[l]);
+							int _dil=timeid(__train.saleDate[0]+_tmp.month,__train.saleDate[1]+_tmp.day);
+							int _dir=timeid(__train.saleDate[2]+_tmp.month,__train.saleDate[3]+_tmp.day);
 							if(_di>_dir){
 								_mark=0;
 								break;
 							}
-							_di=std::max(_di,_dil)-_tmp.d;
-							_tmp=(ntime){timedecode1(_di),timedecode2(_di),__train.x[0],__train.x[1]};
-							_tmp=timecalc(_tmp,__train.leave[l]);
+							_di=std::max(_di,_dil)-_tmp.day;
+							_tmp=(ntime){Decode_month(_di),Decode_day(_di),__train.startTime[0],__train.startTime[1]};
+							_tmp=timecalc(_tmp,__train.leaveTime[l]);
 							_gap=_tmp-midtime;
 							if(_gap<0)_gap+=1440,_di++;
-							int _ld=timeid(__train.d[0],__train.d[1]),_rd=timeid(__train.d[2],__train.d[3]);
+							int _ld=timeid(__train.saleDate[0],__train.saleDate[1]);
+							int _rd=timeid(__train.saleDate[2],__train.saleDate[3]);
 							if(_di<_ld||_di>_rd){
 								_mark=0;
 								break;
 							}
-							file_seat.seekg(__train.m[_di],std::ios::beg);
+							file_seat.seekg(__train.seatPos[_di],std::ios::beg);
 							file_seat.read(reinterpret_cast<char * >(&__seat),sizeof(__seat));
 						}
 						else if(l==ti){
@@ -772,34 +788,34 @@ void query_transfer(){
 							int nowkey=0,_nowkey=0;
 							if(q[0]=='c')nowkey=p+_p;
 							else {
-								nowkey+=_train.arrive[j]-_train.leave[mark];
-								nowkey+=__train.arrive[l]-__train.leave[_mark];
+								nowkey+=_train.arriveTime[j]-_train.leaveTime[mark];
+								nowkey+=__train.arriveTime[l]-__train.leaveTime[_mark];
 								nowkey+=_gap;
 							}
-							_nowkey=_train.arrive[j]-_train.leave[mark];
+							_nowkey=_train.arriveTime[j]-_train.leaveTime[mark];
 							if(nowkey<key||(nowkey==key&&_nowkey<_key)){
-								memcpy(sort_a[0].i,_train.i,sizeof(_train.i));
-								memcpy(sort_a[1].i,__train.i,sizeof(__train.i));
+								memcpy(sort_a[0].i,_train.trainID,sizeof(_train.trainID));
+								memcpy(sort_a[1].i,__train.trainID,sizeof(__train.trainID));
 								sort_a[0].p=p,sort_a[1].p=_p;
 								sort_a[0].s=s,sort_a[1].s=_s;
-								sort_a[0].st=_train.leave[mark];
-								sort_a[0].tt=_train.arrive[j];
-								sort_a[0].x[0]=_train.x[0],sort_a[0].x[1]=_train.x[1];
-								sort_a[1].st=__train.leave[_mark];
-								sort_a[1].tt=__train.arrive[l];
-								sort_a[1].x[0]=__train.x[0],sort_a[1].x[1]=__train.x[1];
-								memcpy(mids,_train.s[j],sizeof(_train.s[j]));
+								sort_a[0].st=_train.leaveTime[mark];
+								sort_a[0].tt=_train.arriveTime[j];
+								sort_a[0].x[0]=_train.startTime[0],sort_a[0].x[1]=_train.startTime[1];
+								sort_a[1].st=__train.leaveTime[_mark];
+								sort_a[1].tt=__train.arriveTime[l];
+								sort_a[1].x[0]=__train.startTime[0],sort_a[1].x[1]=__train.startTime[1];
+								memcpy(mids,_train.stations[j],sizeof(_train.stations[j]));
 								key=nowkey;_key=_nowkey;
 								gap=_gap;
 							}
 							break;
 						}
-						if(_mark)_p+=__train.p[l],_s=std::min(_s,__seat.s[l]);
+						if(_mark)_p+=__train.prices[l],_s=std::min(_s,__seat.day_seat[l]);
 					}
 					if(!_mark)continue;
 				}
 			}
-			if(mark)p+=_train.p[j],s=std::min(s,_seat.s[j]);
+			if(mark)p+=_train.prices[j],s=std::min(s,_seat.day_seat[j]);
 		}
 	}
 	if(key==inf)puts("0");
@@ -807,7 +823,7 @@ void query_transfer(){
 		printf("%s %s ",sort_a[0].i,s);
 		ntime tmp=(ntime){d[0],d[1],sort_a[0].x[0],sort_a[0].x[1]};
 		tmp=timecalc(tmp,sort_a[0].st);
-		tmp.m=d[0],tmp.d=d[1];
+		tmp.month=d[0],tmp.day=d[1];
 		tmp.output();
 		printf(" -> %s ",mids);
 		tmp=timecalc(tmp,sort_a[0].tt-sort_a[0].st);
@@ -847,34 +863,36 @@ long long buy_ticket(){
 	int ipos=trains.query(ihash);
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
-	if(n>_train.ms)return -1;
+	if(n>_train.seatNum)return -1;
 	int di=timeid(d[0],d[1]),mark=0,s=inf,p=0;
-	int si=find_pos(1,_train.n,_train.sh,fhash),ti=find_pos(1,_train.n,_train.sh,thash);
+	int si=find_pos(1,_train.stationNum,_train.stations_hash,fhash);
+	int ti=find_pos(1,_train.stationNum,_train.stations_hash,thash);
 	if(si==-1||ti==-1)return -1;
-	si=_train.ps[si],ti=_train.ps[ti];
-	ntime tmp=(ntime){0,0,_train.x[0],_train.x[1]};
+	si=_train.original_pos[si],ti=_train.original_pos[ti];
+	ntime tmp=(ntime){0,0,_train.startTime[0],_train.startTime[1]};
 	for(int i=si;i<ti;++i){
 		if(i==si){
-			tmp=timecalc(tmp,_train.leave[i]);
-			di-=tmp.d;
+			tmp=timecalc(tmp,_train.leaveTime[i]);
+			di-=tmp.day;
 			mark=1;
 			si=i;
-			int ld=timeid(_train.d[0],_train.d[1]),rd=timeid(_train.d[2],_train.d[3]);
+			int ld=timeid(_train.saleDate[0],_train.saleDate[1]);
+			int rd=timeid(_train.saleDate[2],_train.saleDate[3]);
 			if(di<ld||di>rd){
 				mark=0;
 				break;
 			}
-			file_seat.seekg(_train.m[di],std::ios::beg);
+			file_seat.seekg(_train.seatPos[di],std::ios::beg);
 			file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 		}
-		p+=_train.p[i],s=std::min(s,_seat.s[i]);
+		p+=_train.prices[i],s=std::min(s,_seat.day_seat[i]);
 	}
 	if(!mark)return -1;
 	if(s<n&&(q[0]=='f'||!fq))return -1;
 	if(si==-1||ti==-1)return -1;
 	if(s>=n){
-		for(int i=si;i<ti;++i)_seat.s[i]-=n;
-		file_seat.seekg(_train.m[di],std::ios::beg);
+		for(int i=si;i<ti;++i)_seat.day_seat[i]-=n;
+		file_seat.seekg(_train.seatPos[di],std::ios::beg);
 		file_seat.write(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 		int opos=orders.query(uhash),precnt=0;
 		if(opos!=-1){
@@ -882,15 +900,18 @@ long long buy_ticket(){
 			file_order.read(reinterpret_cast<char * >(&_order),sizeof(_order));
 			precnt=_order.cnt;
 		}
-		memcpy(_order.i,_train.i,sizeof(_train.i));
-		_order.pre=opos;_order.cnt=precnt+1;
-		_order.sta=1;
-		_order.di=di;_order.si=si;_order.ti=ti;
-		_order.n=n;_order.p=p;
-		memcpy(_order.sp,f,sizeof(f));
-		memcpy(_order.tp,t,sizeof(t));
-		_order.s=(ntime){d[0],d[1],tmp.h,tmp.n};
-		_order.t=timecalc(_order.s,_train.arrive[ti]-_train.leave[si]);
+		memcpy(_order.trainID,_train.trainID,sizeof(_train.trainID));
+		_order.prePos=opos;_order.cnt=precnt+1;
+		_order.status=1;
+		_order.date=di;
+		_order.startOrder=si;
+		_order.endOrder=ti;
+		_order.seatNum=n;
+		_order.price=p;
+		memcpy(_order.startStation,f,sizeof(f));
+		memcpy(_order.endStation,t,sizeof(t));
+		_order.startTime=(ntime){d[0],d[1],tmp.hour,tmp.minute};
+		_order.endTime=timecalc(_order.startTime,_train.arriveTime[ti]-_train.leaveTime[si]);
 		orders.erase(uhash,opos);
 		file_order.seekg(0,std::ios::end);
 		opos=file_order.tellg();
@@ -904,15 +925,18 @@ long long buy_ticket(){
 			file_order.read(reinterpret_cast<char * >(&_order),sizeof(_order));
 			precnt=_order.cnt;
 		}
-		memcpy(_order.i,_train.i,sizeof(_train.i));
-		_order.pre=opos;_order.cnt=precnt+1;
-		_order.sta=2;
-		_order.di=di;_order.si=si;_order.ti=ti;
-		_order.n=n;_order.p=p;
-		memcpy(_order.sp,f,sizeof(f));
-		memcpy(_order.tp,t,sizeof(t));
-		_order.s=(ntime){d[0],d[1],tmp.h,tmp.n};
-		_order.t=timecalc(_order.s,_train.arrive[ti]-_train.leave[si]);
+		memcpy(_order.trainID,_train.trainID,sizeof(_train.trainID));
+		_order.prePos=opos;_order.cnt=precnt+1;
+		_order.status=2;
+		_order.date=di;
+		_order.startOrder=si;
+		_order.endOrder=ti;
+		_order.seatNum=n;
+		_order.price=p;
+		memcpy(_order.startStation,f,sizeof(f));
+		memcpy(_order.endStation,t,sizeof(t));
+		_order.startTime=(ntime){d[0],d[1],tmp.hour,tmp.minute};
+		_order.endTime=timecalc(_order.startTime,_train.arriveTime[ti]-_train.leaveTime[si]);
 		orders.erase(uhash,opos);
 		file_order.seekg(0,std::ios::end);
 		opos=file_order.tellg();
@@ -929,15 +953,16 @@ long long buy_ticket(){
 			int _qpos=file_queue.tellg();
 			file_queue.seekg(qpos,std::ios::beg);
 			file_queue.read(reinterpret_cast<char * >(&_queue),sizeof(_queue));
-			_queue.nxt=_qpos;
+			_queue.nxtPos=_qpos;
 			file_queue.seekg(qpos,std::ios::beg);
 			file_queue.write(reinterpret_cast<char * >(&_queue),sizeof(_queue));
 		}
-		_queue.nxt=-1;
-		_queue.opos=opos;
-		_queue.si=si,_queue.ti=ti;
-		_queue.di=di;
-		_queue.n=n;
+		_queue.nxtPos=-1;
+		_queue.orderPos=opos;
+		_queue.startOrder=si;
+		_queue.endOrder=ti;
+		_queue.date=di;
+		_queue.seatNum=n;
 		file_queue.seekg(0,std::ios::end);
 		dqueues.insert(ihash,file_queue.tellg());
 		file_queue.write(reinterpret_cast<char * >(&_queue),sizeof(_queue));
@@ -957,15 +982,15 @@ int query_order(){
 		file_order.seekg(opos,std::ios::beg);
 		file_order.read(reinterpret_cast<char * >(&_order),sizeof(_order));
 		if(!cnt)printf("%d\n",cnt=_order.cnt);
-		if(_order.sta==1)printf("[success] ");
-		else if(_order.sta==2)printf("[pending] ");
+		if(_order.status==1)printf("[success] ");
+		else if(_order.status==2)printf("[pending] ");
 		else printf("[refunded] ");
-		printf("%s %s ",_order.i,_order.sp);
-		_order.s.output();
-		printf(" -> %s ",_order.tp);
-		_order.t.output(' ');
-		printf("%d %d\n",_order.p,_order.n);
-		opos=_order.pre;
+		printf("%s %s ",_order.trainID,_order.startStation);
+		_order.startTime.output();
+		printf(" -> %s ",_order.endStation);
+		_order.endTime.output(' ');
+		printf("%d %d\n",_order.price,_order.seatNum);
+		opos=_order.prePos;
 	}
 	return 0;
 }
@@ -991,52 +1016,52 @@ int refund_ticket(){
 		file_order.read(reinterpret_cast<char * >(&_order),sizeof(_order));
 		n--;
 		if(n<=0)break;
-		opos=_order.pre;
+		opos=_order.prePos;
 	}
 	if(n)return -1;
-	if(_order.sta==3)return -1;
-	if(_order.sta==2){
-		_order.sta=3;
+	if(_order.status==3)return -1;
+	if(_order.status==2){
+		_order.status=3;
 		file_order.seekg(opos,std::ios::beg);
 		file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
-		unsigned int ihash=hash_calc(_order.i);
+		unsigned int ihash=hash_calc(_order.trainID);
 		int qpos=queues.query(ihash),_qpos=-1;
 		while(qpos!=-1){
 			file_queue.seekg(qpos,std::ios::beg);
 			file_queue.read(reinterpret_cast<char * >(&_queue),sizeof(_queue));
-			if(_queue.opos==opos){
+			if(_queue.orderPos==opos){
 				//delete node
 				if(_qpos==-1){
 					queues.erase(ihash,qpos);
-					if(_queue.nxt!=-1)queues.insert(ihash,_queue.nxt);
+					if(_queue.nxtPos!=-1)queues.insert(ihash,_queue.nxtPos);
 				} else {
-					__queue.nxt=_queue.nxt;
+					__queue.nxtPos=_queue.nxtPos;
 					file_queue.seekg(_qpos,std::ios::beg);
 					file_queue.write(reinterpret_cast<char * >(&__queue),sizeof(__queue));
 				}
-				if(_queue.nxt==-1){
+				if(_queue.nxtPos==-1){
 					dqueues.erase(ihash,qpos);
 					if(_qpos!=-1)dqueues.insert(ihash,_qpos);
 				}
 			} else {
 				__queue=_queue,_qpos=qpos;
 			}
-			qpos=_queue.nxt;
+			qpos=_queue.nxtPos;
 		}
 		return 0;
 	}
-	_order.sta=3;
+	_order.status=3;
 	file_order.seekg(opos,std::ios::beg);
 	file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
-	unsigned int ihash=hash_calc(_order.i);
+	unsigned int ihash=hash_calc(_order.trainID);
 	int ipos=trains.query(ihash);
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
-	file_seat.seekg(_train.m[_order.di],std::ios::beg);
+	file_seat.seekg(_train.seatPos[_order.date],std::ios::beg);
 	file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
-	for(int i=_order.si;i<_order.ti;++i)
-		_seat.s[i]+=_order.n;
-	file_seat.seekg(_train.m[_order.di],std::ios::beg);
+	for(int i=_order.startOrder;i<_order.endOrder;++i)
+		_seat.day_seat[i]+=_order.seatNum;
+	file_seat.seekg(_train.seatPos[_order.date],std::ios::beg);
 	file_seat.write(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 	//queue
 	int qpos=queues.query(ihash),_qpos=-1;
@@ -1044,44 +1069,49 @@ int refund_ticket(){
 		file_queue.seekg(qpos,std::ios::beg);
 		file_queue.read(reinterpret_cast<char * >(&_queue),sizeof(_queue));
 		int s=inf;
-		file_seat.seekg(_train.m[_queue.di],std::ios::beg);
+		file_seat.seekg(_train.seatPos[_queue.date],std::ios::beg);
 		file_seat.read(reinterpret_cast<char * >(&_seat),sizeof(_seat));
-		for(int i=_queue.si;i<_queue.ti;++i)s=std::min(s,_seat.s[i]);
-		if(s>=_queue.n){
-			for(int i=_queue.si;i<_queue.ti;++i)_seat.s[i]-=_queue.n;
-			file_seat.seekg(_train.m[_queue.di],std::ios::beg);
+		for(int i=_queue.startOrder;i<_queue.endOrder;++i)s=std::min(s,_seat.day_seat[i]);
+		if(s>=_queue.seatNum){
+			for(int i=_queue.startOrder;i<_queue.endOrder;++i)_seat.day_seat[i]-=_queue.seatNum;
+			file_seat.seekg(_train.seatPos[_queue.date],std::ios::beg);
 			file_seat.write(reinterpret_cast<char * >(&_seat),sizeof(_seat));
-			file_order.seekg(_queue.opos,std::ios::beg);
+			file_order.seekg(_queue.orderPos,std::ios::beg);
 			file_order.read(reinterpret_cast<char * >(&_order),sizeof(_order));
-			_order.sta=1;
-			file_order.seekg(_queue.opos,std::ios::beg);
+			_order.status=1;
+			file_order.seekg(_queue.orderPos,std::ios::beg);
 			file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
 			//delete node
 			if(_qpos==-1){
 				queues.erase(ihash,qpos);
-				if(_queue.nxt!=-1)queues.insert(ihash,_queue.nxt);
+				if(_queue.nxtPos!=-1)queues.insert(ihash,_queue.nxtPos);
 			} else {
-				__queue.nxt=_queue.nxt;
+				__queue.nxtPos=_queue.nxtPos;
 				file_queue.seekg(_qpos,std::ios::beg);
 				file_queue.write(reinterpret_cast<char * >(&__queue),sizeof(__queue));
 			}
-			if(_queue.nxt==-1){
+			if(_queue.nxtPos==-1){
 				dqueues.erase(ihash,qpos);
 				if(_qpos!=-1)dqueues.insert(ihash,_qpos);
 			}
 		} else {
 			__queue=_queue,_qpos=qpos;
 		}
-		qpos=_queue.nxt;
+		qpos=_queue.nxtPos;
 	}
 	return 0;
 }
 
 //clean
 void clean(){
-	hashtable1.clear();hashtable2.clear();
-	users.clear();trains.clear();stations.clear();
-	orders.clear();queues.clear();dqueues.clear();
+	hashtable1.clear();
+	hashtable2.clear();
+	users.clear();
+	trains.clear();
+	orders.clear();
+	queues.clear();
+	dqueues.clear();
+	stations.clear();
 	first_user.clear();
 	file_user.close();
 	file_user.open("user",std::fstream::out|std::ios::trunc);
