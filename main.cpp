@@ -6,15 +6,19 @@
 #include<fstream>
 #include "BPlus_Tree.cpp"
 
-
 const int inf=0x3f3f3f3f;
 
 int nextorder=0;
 char odr[20];
-BPlus_Tree user("_user",2000000),train("_train",6000000),station("_station",6000000);
-BPlus_Tree order("_order",2000000),queue("_queue",2000000),dqueue("_dqueue",2000000);
-BPlus_Tree hashtable1("_login",10000),hashtable2("_release",10000);
+BPlus_Tree users("_user",2000000);
+BPlus_Tree trains("_train",6000000);
+BPlus_Tree orders("_order",2000000);
+BPlus_Tree queues("_queue",2000000);
 BPlus_Tree first_user("_first",100);
+BPlus_Tree dqueues("_dqueue",2000000);
+BPlus_Tree stations("_station",6000000);
+BPlus_Tree hashtable1("_login",10000);
+BPlus_Tree hashtable2("_release",10000);
 
 std::fstream file_user("user",std::ios::in|std::ios::out|std::ios::binary);
 std::fstream file_train("train",std::ios::in|std::ios::out|std::ios::binary);
@@ -81,9 +85,8 @@ unsigned int hash_calc(char *s){
 
 //sort
 struct sort_node{
-	int key;
+	int key,st,tt,p,s,x[2];
 	char i[25];
-	int st,tt,p,s,x[2];
 	bool operator <= (const sort_node &A) const {
 		return key<A.key||(key==A.key&&(string_less(i,A.i)||string_same(i,A.i)));
 	};
@@ -133,44 +136,79 @@ int find_pos(int l,int r,unsigned int *a,unsigned int x){
 }
 
 //user
-struct user_node{
-	char u[25],p[35],n[25],m[35];
-	int g;
-}_user,ucur;
+class user{
+private:
+	char username[25],password[35],name[25],mailAddr[35];
+	int privilege;
+public:
+	user(){}
+	user(const char *_username,const char *_password,const char *_name,const char *_mailAddr,int p) {
+		strcpy(username,_username);
+		strcpy(password,_password);
+		strcpy(name,_name);
+		strcpy(mailAddr,_mailAddr);
+		privilege=p;
+	}
+	int Get_privilege(){
+		return privilege;
+	}
+	bool Match_password(const char *s){
+		return string_same(password,s);
+	}
+	void Update_password(const char *s){
+		strcpy(password,s);
+	}
+	void Update_name(const char *s){
+		strcpy(name,s);
+	}
+	void Update_mailAddr(const char *s){
+		strcpy(mailAddr,s);
+	}
+	void Update_privilege(int p){
+		privilege=p;
+	}
+	void output(){
+		printf("%s %s %s %d\n",username,name,mailAddr,privilege);
+	}
+};
 int add_user(){
-	char now[5],c[25];
+	char now[5],u[25],p[35],n[25],m[35],c[25];
+	int g;
 	for(int i=1;i<=6;++i){
 		scanf("%s",now);
 		if(now[1]=='c')scanf("%s",c);
-		else if(now[1]=='u')scanf("%s",_user.u);
-		else if(now[1]=='p')scanf("%s",_user.p);
-		else if(now[1]=='n')scanf("%s",_user.n);
-		else if(now[1]=='m')scanf("%s",_user.m);
-		else scanf("%d",&_user.g);
+		else if(now[1]=='u')scanf("%s",u);
+		else if(now[1]=='p')scanf("%s",p);
+		else if(now[1]=='n')scanf("%s",n);
+		else if(now[1]=='m')scanf("%s",m);
+		else scanf("%d",&g);
 	}
 	//the first user
 	if(first_user.query(0)==-1){
-		_user.g=10;
-		user.insert(hash_calc(_user.u),0);
+		g=10;
+		users.insert(hash_calc(u),0);
+		user _user(u,p,n,m,g);
 		file_user.seekg(0,std::ios::beg);
 		file_user.write(reinterpret_cast<char * >(&_user),sizeof(_user));
 		first_user.insert(0,1);
 		return 0;
 	}
 	//login
-	unsigned int curh=hash_calc(c),uhash=hash_calc(_user.u);
-	if(hashtable1.query(curh)==-1)return -1;
+	unsigned int chash=hash_calc(c),uhash=hash_calc(u);
+	if(hashtable1.query(chash)==-1)return -1;
 	//privilege
-	int curpos=user.query(curh);
+	int curpos=users.query(chash);
 	file_user.seekg(curpos,std::ios::beg);
+	user ucur;
 	file_user.read(reinterpret_cast<char * >(&ucur),sizeof(ucur));
-	if(ucur.g<=_user.g)return -1;
+	if(ucur.Get_privilege()<=g)return -1;
 	//id conflict
-	if(user.query(uhash)!=-1)return -1;
+	if(users.query(uhash)!=-1)return -1;
 	//legal
 	file_user.seekg(0,std::ios::end);
 	int nowpos=file_user.tellg();
-	user.insert(uhash,nowpos);
+	users.insert(uhash,nowpos);
+	user _user(u,p,n,m,g);
 	file_user.write(reinterpret_cast<char * >(&_user),sizeof(_user));
 	return 0;
 }
@@ -182,16 +220,16 @@ int login(){
 		else scanf("%s",p);
 	}
 	unsigned int uhash=hash_calc(u);
-	int pos=user.query(uhash);
+	int pos=users.query(uhash);
 	//username error
 	if(pos==-1)return -1;
 	//have logged in
 	if(hashtable1.query(uhash)==1)return -1;
 	file_user.seekg(pos,std::ios::beg);
+	user ucur;
 	file_user.read(reinterpret_cast<char * >(&ucur),sizeof(ucur));
-//	std::cout<<u<<' '<<ucur.u<<' '<<ucur.p<<' '<<p<<'\n';
 	//password error
-	if(string_same(ucur.p,p)){
+	if(ucur.Match_password(p)){
 		hashtable1.insert(uhash,1);
 		return 0;
 	} else return -1;
@@ -214,21 +252,27 @@ int query_profile(){
 	unsigned int chash=hash_calc(c),uhash=hash_calc(u);
 	//login
 	if(hashtable1.query(chash)==-1)return -1;
-	int cpos=user.query(chash),upos=user.query(uhash);
+	int cpos=users.query(chash),upos=users.query(uhash);
 	//query itself
 	if(chash==uhash){
 		file_user.seekg(upos,std::ios::beg);
+		user _user;
 		file_user.read(reinterpret_cast<char * >(&_user),sizeof(_user));
+		_user.output();
 		return 0;
 	}
 	//username error
 	if(upos==-1)return -1;
 	//legal
+	user ucur,_user;
 	file_user.seekg(cpos,std::ios::beg);
 	file_user.read(reinterpret_cast<char * >(&ucur),sizeof(ucur));
 	file_user.seekg(upos,std::ios::beg);
 	file_user.read(reinterpret_cast<char * >(&_user),sizeof(_user));
-	return ucur.g>_user.g?0:-1;
+	if(ucur.Get_privilege()>_user.Get_privilege()){
+		_user.output();
+		return 0;
+	} else return -1;
 }
 int modify_profile(){
 	char now[20],c[25],u[25],p[35],n[25],m[35];
@@ -249,33 +293,38 @@ int modify_profile(){
 	unsigned int chash=hash_calc(c),uhash=hash_calc(u);
 	//login error
 	if(hashtable1.query(chash)==-1)return -1;
-	int cpos=user.query(chash),upos=user.query(uhash);
+	int cpos=users.query(chash),upos=users.query(uhash);
 	if(chash==uhash){
 		file_user.seekg(upos,std::ios::beg);
+		user _user;
 		file_user.read(reinterpret_cast<char * >(&_user),sizeof(_user));
-		if(fg&&_user.g<=g)return -1;
-		if(fp)memcpy(_user.p,p,sizeof(_user.p));
-		if(fn)memcpy(_user.n,n,sizeof(_user.n));
-		if(fm)memcpy(_user.m,m,sizeof(_user.m));
-		if(fg)_user.g=g;
+		if(fg&&_user.Get_privilege()<=g)return -1;
+		if(fp)_user.Update_password(p);
+		if(fn)_user.Update_name(n);
+		if(fm)_user.Update_mailAddr(m);
+		if(fg)_user.Update_privilege(g);
 		file_user.seekg(upos,std::ios::beg);
 		file_user.write(reinterpret_cast<char * >(&_user),sizeof(_user));
+		_user.output();
 		return 0;
 	}
 	//username error
 	if(upos==-1)return -1;
+	user ucur,_user;
 	file_user.seekg(cpos,std::ios::beg);
 	file_user.read(reinterpret_cast<char * >(&ucur),sizeof(ucur));
 	file_user.seekg(upos,std::ios::beg);
 	file_user.read(reinterpret_cast<char * >(&_user),sizeof(_user));
 	//privilege error
-	if(ucur.g<=_user.g||(fg&&ucur.g<=g))return -1;
-	if(fp)memcpy(_user.p,p,sizeof(_user.p));
-	if(fn)memcpy(_user.n,n,sizeof(_user.n));
-	if(fm)memcpy(_user.m,m,sizeof(_user.m));
-	if(fg)_user.g=g;
+	int cg=ucur.Get_privilege(),ug=_user.Get_privilege();
+	if(cg<=ug||(fg&&cg<=g))return -1;
+	if(fp)_user.Update_password(p);
+	if(fn)_user.Update_name(n);
+	if(fm)_user.Update_mailAddr(m);
+	if(fg)_user.Update_privilege(g);
 	file_user.seekg(upos,std::ios::beg);
 	file_user.write(reinterpret_cast<char * >(&_user),sizeof(_user));
+	_user.output();
 	return 0;
 }
 
@@ -420,7 +469,7 @@ int add_train(){
 	}
 	//illegal
 	unsigned int ihash=hash_calc(_train.i);
-	if(train.query(ihash)!=-1)return -1;
+	if(trains.query(ihash)!=-1)return -1;
  	//process the information
 	_train.leave[1]=0;
 	for(int i=2;i<=_train.n;++i){
@@ -430,7 +479,7 @@ int add_train(){
 	//write train
 	file_train.seekg(0,std::ios::end);
 	int nowpos=file_train.tellg();
-	train.insert(ihash,nowpos);
+	trains.insert(ihash,nowpos);
 	file_train.write(reinterpret_cast<char * >(&_train),sizeof(_train));
 	return 0;
 }
@@ -439,12 +488,12 @@ int release_train(){
 	scanf("%s%s",now,i);
 	unsigned int ihash=hash_calc(i);
 	//not exist
-	if(train.query(ihash)==-1)return -1;
+	if(trains.query(ihash)==-1)return -1;
 	//have been released
 	if(hashtable2.query(ihash)==1)return -1;
 	//legal
 	hashtable2.insert(ihash,1);
-	int ipos=train.query(ihash);
+	int ipos=trains.query(ihash);
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 	//write itself
@@ -466,10 +515,10 @@ int release_train(){
 	//write station
 	for(int i=1;i<=_train.n;++i){
 		unsigned int shash=hash_calc(_train.s[i]);
-		int spos=station.query(shash);
+		int spos=stations.query(shash);
 		if(spos==-1){
 			file_station.seekg(0,std::ios::end);
-			station.insert(shash,file_station.tellg());
+			stations.insert(shash,file_station.tellg());
 			_station.cnt=1;
 			_station.i[_station.cnt]=ihash;
 			_station.ps[_station.cnt]=i;
@@ -496,7 +545,7 @@ int query_train(){
 	}
 	if(d[0]<6)return -1;
 	unsigned int ihash=hash_calc(_i);
-	int nowpos=train.query(ihash),di=timeid(d[0],d[1]);
+	int nowpos=trains.query(ihash),di=timeid(d[0],d[1]);
 	//not exist
 	if(nowpos==-1)return -1;
 	file_train.seekg(nowpos,std::ios::beg);
@@ -529,13 +578,13 @@ int delete_train(){
 	char now[5],_i[25];
 	scanf("%s%s",now,_i);
 	unsigned int ihash=hash_calc(_i);
-	int nowpos=train.query(ihash);
+	int nowpos=trains.query(ihash);
 	//not exist
 	if(nowpos==-1)return -1;
 	//have been released
 	if(hashtable2.query(ihash)==1)return -1;
 	//delete train
-	train.erase(ihash,nowpos);
+	trains.erase(ihash,nowpos);
 	return 0;
 }
 void query_ticket(){
@@ -558,7 +607,7 @@ void query_ticket(){
 	}
 	int cnt=0;
 	unsigned int shash=hash_calc(s),thash=hash_calc(t);
-	int spos=station.query(shash),tpos=station.query(thash);
+	int spos=stations.query(shash),tpos=stations.query(thash);
 	if(spos==-1||tpos==-1){
 		puts("0");
 		return ;
@@ -572,7 +621,7 @@ void query_ticket(){
 	int i=1,j=1;
 	while(i<=_station.cnt&&j<=__station.cnt){
 		if(_station.i[i]==__station.i[j]){
-			int ipos=train.query(_station.i[i]);
+			int ipos=trains.query(_station.i[i]);
 			file_train.seekg(ipos,std::ios::beg);
 			file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 			int st,tt,p=0,seat=inf,mark=0,di=timeid(d[0],d[1]);
@@ -646,7 +695,7 @@ void query_transfer(){
 	int key=inf,_key=inf,gap=0;
 	char mids[50];
 	unsigned int shash=hash_calc(s),thash=hash_calc(t),mhash,ihash,_ihash;
-	int spos=station.query(shash),tpos=station.query(thash),mpos,ipos,_ipos;
+	int spos=stations.query(shash),tpos=stations.query(thash),mpos,ipos,_ipos;
 	if(spos==-1||tpos==-1){
 		puts("0");
 		return ;
@@ -658,7 +707,7 @@ void query_transfer(){
 	//enumerate the train passing by the station S
 	for(int i=1;i<=_station.cnt;++i){
 		ihash=_station.i[i];
-		ipos=train.query(ihash);
+		ipos=trains.query(ihash);
 		file_train.seekg(ipos,std::ios::beg);
 		file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 		int mark=0,p=0,s=inf,di=timeid(d[0],d[1]);
@@ -680,11 +729,11 @@ void query_transfer(){
 					continue;
 				}
 				mhash=nowhash;
-				mpos=station.query(mhash);
+				mpos=stations.query(mhash);
 				for(int k=1;k<=__station.cnt;++k){
 					_ihash=__station.i[k];
 					if(_ihash==ihash)continue;
-					_ipos=train.query(_ihash);
+					_ipos=trains.query(_ihash);
 					file_train.seekg(_ipos,std::ios::beg);
 					file_train.read(reinterpret_cast<char * >(&__train),sizeof(__train));
 					ntime midtime=(ntime){timedecode1(di),timedecode2(di),_train.x[0],_train.x[1]};
@@ -749,75 +798,7 @@ void query_transfer(){
 					}
 					if(!_mark)continue;
 				}
-/*				Get_trainID(train2,mpos,cnt2);
-				//enumerate the train passing by the station M
-				for(int k=1;k<=cnt2;++k){
-					_ihash=train2[k].first;
-					if(_ihash==ihash)continue;
-					_ipos=train.query(_ihash);
-					file_train.seekg(_ipos,std::ios::beg);
-					file_train.read(reinterpret_cast<char * >(&__train),sizeof(__train));
-					ntime midtime=(ntime){timedecode1(di),timedecode2(di),_train.x[0],_train.x[1]};
-					midtime=timecalc(midtime,_train.arrive[j]);
-					int _mark=0,_p=0,_s=inf,_di=timeid(midtime.m,midtime.d),_gap=0;
-					//find the route
-					for(int l=train2[k].second;l<=__train.n;++l){
-						if(l==train2[k].second){
-							_mark=l;
-							ntime _tmp=(ntime){0,0,__train.x[0],__train.x[1]};
-							_tmp=timecalc(_tmp,__train.leave[l]);
-							int _dil=timeid(__train.d[0]+_tmp.m,__train.d[1]+_tmp.d);
-							int _dir=timeid(__train.d[2]+_tmp.m,__train.d[3]+_tmp.d);
-							if(_di>_dir){
-								_mark=0;
-								break;
-							}
-							_di=std::max(_di,_dil)-_tmp.d;
-							_tmp=(ntime){timedecode1(_di),timedecode2(_di),__train.x[0],__train.x[1]};
-							_tmp=timecalc(_tmp,__train.leave[l]);
-							_gap=_tmp-midtime;
-							if(_gap<0)_gap+=1440,_di++;
-							int _ld=timeid(__train.d[0],__train.d[1]),_rd=timeid(__train.d[2],__train.d[3]);
-							if(_di<_ld||_di>_rd){
-								_mark=0;
-								break;
-							}
-							file_seat.seekg(__train.m[_di],std::ios::beg);
-							file_seat.read(reinterpret_cast<char * >(&__seat),sizeof(__seat));
-						}
-						else if(hash_calc(__train.s[l])==thash){
-							if(!_mark)break;
-							//s (i) -> m (_i) -> t
-							int nowkey=0,_nowkey=0;
-							if(q[0]=='c')nowkey=p+_p;
-							else {
-								nowkey+=_train.arrive[j]-_train.leave[mark];
-								nowkey+=__train.arrive[l]-__train.leave[_mark];
-								nowkey+=_gap;
-							}
-							_nowkey=_train.arrive[j]-_train.leave[mark];
-							if(nowkey<key||(nowkey==key&&_nowkey<_key)){
-								memcpy(sort_a[0].i,_train.i,sizeof(_train.i));
-								memcpy(sort_a[1].i,__train.i,sizeof(__train.i));
-								sort_a[0].p=p,sort_a[1].p=_p;
-								sort_a[0].s=s,sort_a[1].s=_s;
-								sort_a[0].st=_train.leave[mark];
-								sort_a[0].tt=_train.arrive[j];
-								sort_a[0].x[0]=_train.x[0],sort_a[0].x[1]=_train.x[1];
-								sort_a[1].st=__train.leave[_mark];
-								sort_a[1].tt=__train.arrive[l];
-								sort_a[1].x[0]=__train.x[0],sort_a[1].x[1]=__train.x[1];
-								memcpy(mids,_train.s[j],sizeof(_train.s[j]));
-								key=nowkey;_key=_nowkey;
-								gap=_gap;
-							}
-							break;
-						}
-						if(_mark)_p+=__train.p[l],_s=std::min(_s,__seat.s[l]);
-					}
-					if(!_mark)continue;
-				}
-*/			}
+			}
 			if(mark)p+=_train.p[j],s=std::min(s,_seat.s[j]);
 		}
 	}
@@ -863,7 +844,7 @@ long long buy_ticket(){
 	if(hashtable1.query(uhash)==-1)return -1;
 	unsigned int ihash=hash_calc(i),fhash=hash_calc(f),thash=hash_calc(t);
 	if(hashtable2.query(ihash)==-1)return -1;
-	int ipos=train.query(ihash);
+	int ipos=trains.query(ihash);
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 	if(n>_train.ms)return -1;
@@ -895,7 +876,7 @@ long long buy_ticket(){
 		for(int i=si;i<ti;++i)_seat.s[i]-=n;
 		file_seat.seekg(_train.m[di],std::ios::beg);
 		file_seat.write(reinterpret_cast<char * >(&_seat),sizeof(_seat));
-		int opos=order.query(uhash),precnt=0;
+		int opos=orders.query(uhash),precnt=0;
 		if(opos!=-1){
 			file_order.seekg(opos,std::ios::beg);
 			file_order.read(reinterpret_cast<char * >(&_order),sizeof(_order));
@@ -910,14 +891,14 @@ long long buy_ticket(){
 		memcpy(_order.tp,t,sizeof(t));
 		_order.s=(ntime){d[0],d[1],tmp.h,tmp.n};
 		_order.t=timecalc(_order.s,_train.arrive[ti]-_train.leave[si]);
-		order.erase(uhash,opos);
+		orders.erase(uhash,opos);
 		file_order.seekg(0,std::ios::end);
 		opos=file_order.tellg();
-		order.insert(uhash,opos);
+		orders.insert(uhash,opos);
 		file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
 		return 1ll*p*n;
 	} else {
-		int opos=order.query(uhash),precnt=0;
+		int opos=orders.query(uhash),precnt=0;
 		if(opos!=-1){
 			file_order.seekg(opos,std::ios::beg);
 			file_order.read(reinterpret_cast<char * >(&_order),sizeof(_order));
@@ -932,18 +913,18 @@ long long buy_ticket(){
 		memcpy(_order.tp,t,sizeof(t));
 		_order.s=(ntime){d[0],d[1],tmp.h,tmp.n};
 		_order.t=timecalc(_order.s,_train.arrive[ti]-_train.leave[si]);
-		order.erase(uhash,opos);
+		orders.erase(uhash,opos);
 		file_order.seekg(0,std::ios::end);
 		opos=file_order.tellg();
-		order.insert(uhash,opos);
+		orders.insert(uhash,opos);
 		file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
 		//queue
-		int qpos=dqueue.query(ihash);
+		int qpos=dqueues.query(ihash);
 		if(qpos==-1){
 			file_queue.seekg(0,std::ios::end);
-			queue.insert(ihash,file_queue.tellg());
+			queues.insert(ihash,file_queue.tellg());
 		} else {
-			dqueue.erase(ihash,qpos);
+			dqueues.erase(ihash,qpos);
 			file_queue.seekg(0,std::ios::end);
 			int _qpos=file_queue.tellg();
 			file_queue.seekg(qpos,std::ios::beg);
@@ -958,7 +939,7 @@ long long buy_ticket(){
 		_queue.di=di;
 		_queue.n=n;
 		file_queue.seekg(0,std::ios::end);
-		dqueue.insert(ihash,file_queue.tellg());
+		dqueues.insert(ihash,file_queue.tellg());
 		file_queue.write(reinterpret_cast<char * >(&_queue),sizeof(_queue));
 		return -2;
 	}
@@ -967,7 +948,7 @@ int query_order(){
 	char now[5],u[25];scanf("%s%s",now,u);
 	unsigned int uhash=hash_calc(u);
 	if(hashtable1.query(uhash)==-1)return -1;
-	int cnt=0,opos=order.query(uhash);
+	int cnt=0,opos=orders.query(uhash);
 	if(opos==-1){
 		puts("0");
 		return 0;
@@ -1004,7 +985,7 @@ int refund_ticket(){
 	//not login
 	if(hashtable1.query(uhash)==-1)return -1;
 	//refund
-	int opos=order.query(uhash);
+	int opos=orders.query(uhash);
 	while(opos!=-1){
 		file_order.seekg(opos,std::ios::beg);
 		file_order.read(reinterpret_cast<char * >(&_order),sizeof(_order));
@@ -1019,23 +1000,23 @@ int refund_ticket(){
 		file_order.seekg(opos,std::ios::beg);
 		file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
 		unsigned int ihash=hash_calc(_order.i);
-		int qpos=queue.query(ihash),_qpos=-1;
+		int qpos=queues.query(ihash),_qpos=-1;
 		while(qpos!=-1){
 			file_queue.seekg(qpos,std::ios::beg);
 			file_queue.read(reinterpret_cast<char * >(&_queue),sizeof(_queue));
 			if(_queue.opos==opos){
 				//delete node
 				if(_qpos==-1){
-					queue.erase(ihash,qpos);
-					if(_queue.nxt!=-1)queue.insert(ihash,_queue.nxt);
+					queues.erase(ihash,qpos);
+					if(_queue.nxt!=-1)queues.insert(ihash,_queue.nxt);
 				} else {
 					__queue.nxt=_queue.nxt;
 					file_queue.seekg(_qpos,std::ios::beg);
 					file_queue.write(reinterpret_cast<char * >(&__queue),sizeof(__queue));
 				}
 				if(_queue.nxt==-1){
-					dqueue.erase(ihash,qpos);
-					if(_qpos!=-1)dqueue.insert(ihash,_qpos);
+					dqueues.erase(ihash,qpos);
+					if(_qpos!=-1)dqueues.insert(ihash,_qpos);
 				}
 			} else {
 				__queue=_queue,_qpos=qpos;
@@ -1048,7 +1029,7 @@ int refund_ticket(){
 	file_order.seekg(opos,std::ios::beg);
 	file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
 	unsigned int ihash=hash_calc(_order.i);
-	int ipos=train.query(ihash);
+	int ipos=trains.query(ihash);
 	file_train.seekg(ipos,std::ios::beg);
 	file_train.read(reinterpret_cast<char * >(&_train),sizeof(_train));
 	file_seat.seekg(_train.m[_order.di],std::ios::beg);
@@ -1058,7 +1039,7 @@ int refund_ticket(){
 	file_seat.seekg(_train.m[_order.di],std::ios::beg);
 	file_seat.write(reinterpret_cast<char * >(&_seat),sizeof(_seat));
 	//queue
-	int qpos=queue.query(ihash),_qpos=-1;
+	int qpos=queues.query(ihash),_qpos=-1;
 	while(qpos!=-1){
 		file_queue.seekg(qpos,std::ios::beg);
 		file_queue.read(reinterpret_cast<char * >(&_queue),sizeof(_queue));
@@ -1077,16 +1058,16 @@ int refund_ticket(){
 			file_order.write(reinterpret_cast<char * >(&_order),sizeof(_order));
 			//delete node
 			if(_qpos==-1){
-				queue.erase(ihash,qpos);
-				if(_queue.nxt!=-1)queue.insert(ihash,_queue.nxt);
+				queues.erase(ihash,qpos);
+				if(_queue.nxt!=-1)queues.insert(ihash,_queue.nxt);
 			} else {
 				__queue.nxt=_queue.nxt;
 				file_queue.seekg(_qpos,std::ios::beg);
 				file_queue.write(reinterpret_cast<char * >(&__queue),sizeof(__queue));
 			}
 			if(_queue.nxt==-1){
-				dqueue.erase(ihash,qpos);
-				if(_qpos!=-1)dqueue.insert(ihash,_qpos);
+				dqueues.erase(ihash,qpos);
+				if(_qpos!=-1)dqueues.insert(ihash,_qpos);
 			}
 		} else {
 			__queue=_queue,_qpos=qpos;
@@ -1099,8 +1080,8 @@ int refund_ticket(){
 //clean
 void clean(){
 	hashtable1.clear();hashtable2.clear();
-	user.clear();train.clear();station.clear();
-	order.clear();queue.clear();dqueue.clear();
+	users.clear();trains.clear();stations.clear();
+	orders.clear();queues.clear();dqueues.clear();
 	first_user.clear();
 	file_user.close();
 	file_user.open("user",std::fstream::out|std::ios::trunc);
@@ -1158,7 +1139,6 @@ int main(){
 			if(odr[6]=='p'){   //query_profile
 				int x=query_profile();
 				if(x==-1)puts("-1");
-				else printf("%s %s %s %d\n",_user.u,_user.n,_user.m,_user.g);
 			} else if(odr[9]=='i'){   //query_train
 				int x=query_train();
 				if(x==-1)puts("-1");
@@ -1173,7 +1153,6 @@ int main(){
 		} else if(odr[0]=='m'){    //modify_profile
 			int x=modify_profile();
 			if(x==-1)puts("-1");
-			else printf("%s %s %s %d\n",_user.u,_user.n,_user.m,_user.g);
 		} else if(odr[0]=='r'){
 			if(odr[2]=='l'){   //release_train
 				printf("%d\n",release_train());
